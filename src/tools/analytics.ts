@@ -503,10 +503,7 @@ export class AnalyticsTools {
   private async getSalesReport(params: MCPToolParams): Promise<MCPToolResult> {
     const { period = 'month', start_date, end_date, currency, context_date } = params;
     
-    // Check if using demo credentials - return mock data
-    if (this.isDemoMode()) {
-      return this.getMockSalesReport(period, currency);
-    }
+    // Only real WooCommerce API - no mock data
     
     try {
       // Calculate date range based on period with Mexico timezone context
@@ -597,9 +594,7 @@ export class AnalyticsTools {
     } = params;
     
     // Check if using demo credentials - return mock data
-    if (this.isDemoMode()) {
-      return this.getMockProductSales(period, limit, order_by);
-    }
+
     
     const dateRange = this.calculateDateRange(period, start_date, end_date);
     
@@ -633,7 +628,7 @@ export class AnalyticsTools {
       };
     } catch (error) {
       // Fallback to mock data on API error
-      return this.getMockProductSales(period, limit, order_by);
+
     }
   }
 
@@ -641,9 +636,7 @@ export class AnalyticsTools {
     const { days = 30, start_date, end_date, status = ['completed', 'processing'], context_date } = params;
     
     // Check if using demo credentials - return mock data
-    if (this.isDemoMode()) {
-      return this.getMockDailySales(days, start_date, end_date);
-    }
+
     
     try {
       let dateRange;
@@ -1026,236 +1019,476 @@ export class AnalyticsTools {
   }
 
   private async getTopSellersData(dateRange: any, limit: number, metric: string, products: any[]) {
-    // Generate realistic Mexican market top sellers data
-    const mockTopSellers = [
-      { product_id: 101, name: 'Suplemento Omega-3 Premium', sku: 'OMEGA-001', quantity_sold: 245, revenue: 98000.00, orders: 180, avg_price: 400.00 },
-      { product_id: 102, name: 'Proteína Whey Natural', sku: 'PROT-002', quantity_sold: 189, revenue: 132300.00, orders: 142, avg_price: 700.00 },
-      { product_id: 103, name: 'Multivitamínico Completo', sku: 'MULTI-003', quantity_sold: 356, revenue: 124600.00, orders: 298, avg_price: 350.00 },
-      { product_id: 104, name: 'Colágeno Hidrolizado', sku: 'COLAG-004', quantity_sold: 167, revenue: 116900.00, orders: 134, avg_price: 700.00 },
-      { product_id: 105, name: 'Magnesio + Zinc', sku: 'MG-ZN-005', quantity_sold: 423, revenue: 105750.00, orders: 356, avg_price: 250.00 },
-      { product_id: 106, name: 'Aceite de Coco Orgánico', sku: 'COCO-006', quantity_sold: 278, revenue: 97300.00, orders: 234, avg_price: 350.00 },
-      { product_id: 107, name: 'Probióticos Advanced', sku: 'PROB-007', quantity_sold: 134, revenue: 93800.00, orders: 112, avg_price: 700.00 },
-      { product_id: 108, name: 'Vitamina D3 + K2', sku: 'VIT-D-008', quantity_sold: 298, revenue: 89400.00, orders: 267, avg_price: 300.00 },
-      { product_id: 109, name: 'Té Verde Extract', sku: 'TE-VER-009', quantity_sold: 512, revenue: 76800.00, orders: 445, avg_price: 150.00 },
-      { product_id: 110, name: 'Ashwagandha Premium', sku: 'ASH-010', quantity_sold: 189, revenue: 75600.00, orders: 167, avg_price: 400.00 }
-    ];
-    
-    // Sort by the requested metric
-    let sortedProducts = [...mockTopSellers];
-    switch (metric) {
-      case 'quantity_sold':
-        sortedProducts.sort((a, b) => b.quantity_sold - a.quantity_sold);
-        break;
-      case 'order_count':
-        sortedProducts.sort((a, b) => b.orders - a.orders);
-        break;
-      case 'revenue':
-      default:
-        sortedProducts.sort((a, b) => b.revenue - a.revenue);
-        break;
+    // Only real WooCommerce API - no demo data
+    try {
+      const orders = await this.wooCommerce.getOrders({ 
+        per_page: 500, 
+        status: 'completed',
+        after: dateRange?.start_date,
+        before: dateRange?.end_date
+      });
+      
+      // Calculate real top sellers from orders
+      const productStats = new Map();
+      
+      for (const order of orders) {
+        for (const item of order.line_items || []) {
+          const productId = item.product_id;
+          if (!productStats.has(productId)) {
+            productStats.set(productId, {
+              product_id: productId,
+              name: item.name,
+              sku: item.sku || '',
+              quantity_sold: 0,
+              revenue: 0,
+              orders: 0,
+              avg_price: 0
+            });
+          }
+          
+          const stats = productStats.get(productId);
+          stats.quantity_sold += item.quantity;
+          stats.revenue += parseFloat(item.total);
+          stats.orders += 1;
+          stats.avg_price = stats.revenue / stats.quantity_sold;
+        }
+      }
+      
+      // Convert to array and sort
+      let sortedProducts = Array.from(productStats.values());
+      switch (metric) {
+        case 'quantity_sold':
+          sortedProducts.sort((a, b) => b.quantity_sold - a.quantity_sold);
+          break;
+        case 'order_count':
+          sortedProducts.sort((a, b) => b.orders - a.orders);
+          break;
+        case 'revenue':
+        default:
+          sortedProducts.sort((a, b) => b.revenue - a.revenue);
+          break;
+      }
+      
+      return sortedProducts.slice(0, limit);
+    } catch (error) {
+      throw new Error(`WooCommerce API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-    
-    // Return limited results
-    return sortedProducts.slice(0, limit);
   }
 
   // Analytics tools with mock data support
   private async getCustomerAnalytics(params: MCPToolParams): Promise<MCPToolResult> {
-    if (this.isDemoMode()) {
+    // Only real WooCommerce API - no demo data
+    try {
+      const customers = await this.wooCommerce.getCustomers({ per_page: 100 });
+      const orders = await this.wooCommerce.getOrders({ per_page: 500, status: 'completed' });
+      
+      // Calculate real customer analytics
+      const totalCustomers = customers.length;
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+      
+      const newCustomersThisMonth = customers.filter(customer => {
+        const createdDate = new Date(customer.date_created);
+        return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear;
+      }).length;
+      
+      // Calculate customer LTV from orders
+      const customerRevenue = new Map();
+      for (const order of orders) {
+        const customerId = order.customer_id;
+        if (customerId) {
+          const revenue = customerRevenue.get(customerId) || 0;
+          customerRevenue.set(customerId, revenue + parseFloat(order.total));
+        }
+      }
+      
+      const averageLTV = customerRevenue.size > 0 
+        ? Array.from(customerRevenue.values()).reduce((a, b) => a + b, 0) / customerRevenue.size
+        : 0;
+      
+      const returningCustomers = customerRevenue.size;
+      const vipCustomers = Array.from(customerRevenue.values()).filter(ltv => ltv > averageLTV * 2).length;
+      
       return {
         content: [{
           type: 'text',
           text: JSON.stringify({
             success: true,
-            mode: 'DEMO_DATA',
+            source: 'woocommerce_api',
             customer_analytics: {
-              total_customers: 1567,
-              new_customers_this_month: 89,
-              returning_customers: 1478,
-              vip_customers: 125,
-              average_ltv: 247.85,
+              total_customers: totalCustomers,
+              new_customers_this_month: newCustomersThisMonth,
+              returning_customers: returningCustomers,
+              vip_customers: vipCustomers,
+              average_ltv: averageLTV,
               customer_segments: {
-                new: { count: 89, percentage: 5.7 },
-                returning: { count: 1478, percentage: 94.3 },
-                vip: { count: 125, percentage: 8.0 }
+                new: { count: newCustomersThisMonth, percentage: (newCustomersThisMonth / totalCustomers) * 100 },
+                returning: { count: returningCustomers, percentage: (returningCustomers / totalCustomers) * 100 },
+                vip: { count: vipCustomers, percentage: (vipCustomers / totalCustomers) * 100 }
               }
-            },
-            message: '📊 DEMO: Customer analytics with LTV and segmentation'
+            }
           }, null, 2)
         }]
       };
+    } catch (error) {
+      throw new Error(`WooCommerce API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-    return { content: [{ type: 'text', text: 'Customer analytics - connect real WooCommerce for live data' }] };
   }
 
   private async getRevenueStats(params: MCPToolParams): Promise<MCPToolResult> {
-    if (this.isDemoMode()) {
+    // Only real WooCommerce API - no demo data
+    try {
+      const orders = await this.wooCommerce.getOrders({ per_page: 500, status: 'completed' });
+      
+      // Calculate real revenue statistics
+      let grossRevenue = 0;
+      let taxesCollected = 0;
+      let shippingRevenue = 0;
+      let discountsGiven = 0;
+      let refundsIssued = 0;
+      let feesCollected = 0;
+      
+      for (const order of orders) {
+        grossRevenue += parseFloat(order.total || '0');
+        taxesCollected += parseFloat(order.total_tax || '0');
+        shippingRevenue += parseFloat(order.shipping_total || '0');
+        discountsGiven += parseFloat(order.discount_total || '0');
+        
+        // Calculate fees from fee lines
+        if (order.fee_lines) {
+          for (const fee of order.fee_lines) {
+            feesCollected += parseFloat(fee.total || '0');
+          }
+        }
+        
+        // Get refunds for this order
+        if (order.refunds && order.refunds.length > 0) {
+          for (const refund of order.refunds) {
+            refundsIssued += parseFloat(refund.total || '0');
+          }
+        }
+      }
+      
+      const netRevenue = grossRevenue - discountsGiven - refundsIssued;
+      const productsRevenue = grossRevenue - shippingRevenue - taxesCollected - feesCollected;
+      
       return {
         content: [{
           type: 'text',
           text: JSON.stringify({
             success: true,
-            mode: 'DEMO_DATA',
+            source: 'woocommerce_api',
             revenue_stats: {
-              gross_revenue: 34890.75,
-              net_revenue: 31401.68,
-              taxes_collected: 2791.26,
-              shipping_revenue: 1567.32,
-              discounts_given: 1231.45,
-              refunds_issued: 456.78,
+              gross_revenue: grossRevenue,
+              net_revenue: netRevenue,
+              taxes_collected: taxesCollected,
+              shipping_revenue: shippingRevenue,
+              discounts_given: discountsGiven,
+              refunds_issued: refundsIssued,
               revenue_breakdown: {
-                products: 31123.43,
-                shipping: 1567.32,
-                taxes: 2791.26,
-                fees: 408.74
+                products: productsRevenue,
+                shipping: shippingRevenue,
+                taxes: taxesCollected,
+                fees: feesCollected
               }
-            },
-            message: '📊 DEMO: Revenue breakdown with taxes and shipping'
+            }
           }, null, 2)
         }]
       };
+    } catch (error) {
+      throw new Error(`WooCommerce API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-    return { content: [{ type: 'text', text: 'Revenue stats - connect real WooCommerce for live data' }] };
   }
 
   private async getOrderStats(params: MCPToolParams): Promise<MCPToolResult> {
-    if (this.isDemoMode()) {
+    // Only real WooCommerce API - no demo data
+    try {
+      const allOrders = await this.wooCommerce.getOrders({ per_page: 500 });
+      
+      // Calculate real order statistics
+      const totalOrders = allOrders.length;
+      const completedOrders = allOrders.filter(order => order.status === 'completed').length;
+      const pendingOrders = allOrders.filter(order => order.status === 'pending').length;
+      const cancelledOrders = allOrders.filter(order => order.status === 'cancelled').length;
+      const refundedOrders = allOrders.filter(order => order.status === 'refunded').length;
+      
+      // Calculate payment methods distribution
+      const paymentMethods = {};
+      allOrders.forEach(order => {
+        const method = order.payment_method_title || order.payment_method || 'unknown';
+        paymentMethods[method] = (paymentMethods[method] || 0) + 1;
+      });
+      
+      // Calculate order value distribution
+      const orderValueDistribution = {
+        under_50: 0,
+        '50_100': 0,
+        '100_200': 0,
+        over_200: 0
+      };
+      
+      allOrders.forEach(order => {
+        const total = parseFloat(order.total || '0');
+        if (total < 50) {
+          orderValueDistribution.under_50++;
+        } else if (total < 100) {
+          orderValueDistribution['50_100']++;
+        } else if (total < 200) {
+          orderValueDistribution['100_200']++;
+        } else {
+          orderValueDistribution.over_200++;
+        }
+      });
+      
+      // Calculate average processing time for completed orders
+      const processingTimes = [];
+      const completedOrdersList = allOrders.filter(order => order.status === 'completed');
+      
+      completedOrdersList.forEach(order => {
+        const created = new Date(order.date_created);
+        const completed = new Date(order.date_completed || order.date_modified);
+        const diffHours = (completed.getTime() - created.getTime()) / (1000 * 60 * 60);
+        if (diffHours > 0) {
+          processingTimes.push(diffHours);
+        }
+      });
+      
+      const averageProcessingTime = processingTimes.length > 0
+        ? `${(processingTimes.reduce((a, b) => a + b, 0) / processingTimes.length).toFixed(1)} hours`
+        : 'N/A';
+      
       return {
         content: [{
           type: 'text',
           text: JSON.stringify({
             success: true,
-            mode: 'DEMO_DATA',
+            source: 'woocommerce_api',
             order_stats: {
-              total_orders: 187,
-              completed_orders: 174,
-              pending_orders: 8,
-              cancelled_orders: 3,
-              refunded_orders: 2,
-              average_processing_time: '2.3 hours',
-              payment_methods: {
-                credit_card: 145,
-                paypal: 28,
-                bank_transfer: 14
-              },
-              order_value_distribution: {
-                under_50: 34,
-                '50_100': 67,
-                '100_200': 56,
-                over_200: 30
-              }
-            },
-            message: '📊 DEMO: Order statistics and processing metrics'
+              total_orders: totalOrders,
+              completed_orders: completedOrders,
+              pending_orders: pendingOrders,
+              cancelled_orders: cancelledOrders,
+              refunded_orders: refundedOrders,
+              average_processing_time: averageProcessingTime,
+              payment_methods: paymentMethods,
+              order_value_distribution: orderValueDistribution
+            }
           }, null, 2)
         }]
       };
+    } catch (error) {
+      throw new Error(`WooCommerce API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-    return { content: [{ type: 'text', text: 'Order stats - connect real WooCommerce for live data' }] };
   }
 
   private async getCouponStats(params: MCPToolParams): Promise<MCPToolResult> {
-    if (this.isDemoMode()) {
+    // Only real WooCommerce API - no demo data
+    try {
+      const orders = await this.wooCommerce.getOrders({ per_page: 100, status: 'completed' });
+      const coupons = await this.wooCommerce.getCoupons({ per_page: 100 });
+      
+      // Calculate real coupon statistics from orders
+      const couponUsage = new Map();
+      let totalDiscountAmount = 0;
+      
+      orders.forEach((order: any) => {
+        if (order.coupon_lines && order.coupon_lines.length > 0) {
+          order.coupon_lines.forEach((couponLine: any) => {
+            const code = couponLine.code;
+            const discount = parseFloat(couponLine.discount) || 0;
+            
+            if (!couponUsage.has(code)) {
+              couponUsage.set(code, { uses: 0, discount: 0 });
+            }
+            
+            const usage = couponUsage.get(code);
+            usage.uses += 1;
+            usage.discount += discount;
+            totalDiscountAmount += discount;
+          });
+        }
+      });
+      
+      const mostUsedCoupons = Array.from(couponUsage.entries())
+        .map(([code, stats]: [string, any]) => ({ code, uses: stats.uses, discount: stats.discount }))
+        .sort((a, b) => b.uses - a.uses)
+        .slice(0, 5);
+      
       return {
         content: [{
           type: 'text',
           text: JSON.stringify({
             success: true,
-            mode: 'DEMO_DATA',
+            source: 'woocommerce_api',
             coupon_stats: {
-              total_coupons_used: 45,
-              total_discount_amount: 1231.45,
-              most_used_coupons: [
-                { code: 'SUMMER20', uses: 18, discount: 567.80 },
-                { code: 'NEWCUST10', uses: 15, discount: 234.50 },
-                { code: 'BULK15', uses: 12, discount: 429.15 }
-              ],
+              total_coupons_used: couponUsage.size,
+              total_discount_amount: totalDiscountAmount,
+              most_used_coupons: mostUsedCoupons,
               coupon_effectiveness: {
-                conversion_rate: '12.5%',
-                average_discount: 27.36,
-                roi: '340%'
+                conversion_rate: orders.length > 0 ? `${((couponUsage.size / orders.length) * 100).toFixed(1)}%` : '0%',
+                average_discount: couponUsage.size > 0 ? (totalDiscountAmount / couponUsage.size).toFixed(2) : 0
               }
             },
-            message: '📊 DEMO: Coupon usage and effectiveness analysis'
+            message: 'Coupon usage statistics from WooCommerce store'
           }, null, 2)
         }]
       };
+    } catch (error) {
+      this.logger.error('Failed to fetch coupon statistics', { error: error instanceof Error ? error.message : error });
+      throw new Error(`WooCommerce API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-    return { content: [{ type: 'text', text: 'Coupon stats - connect real WooCommerce for live data' }] };
   }
 
   private async getTaxReports(params: MCPToolParams): Promise<MCPToolResult> {
-    if (this.isDemoMode()) {
+    // Only real WooCommerce API - no demo data
+    try {
+      const orders = await this.wooCommerce.getOrders({ per_page: 500, status: 'completed' });
+      
+      // Calculate real tax reports
+      let totalTaxesCollected = 0;
+      const taxByRate = new Map();
+      const taxByLocation = new Map();
+      
+      orders.forEach(order => {
+        const totalTax = parseFloat(order.total_tax || '0');
+        totalTaxesCollected += totalTax;
+        
+        // Process tax lines for rate breakdown
+        if (order.tax_lines) {
+          order.tax_lines.forEach(taxLine => {
+            const rate = taxLine.rate_percent || 0;
+            const amount = parseFloat(taxLine.tax_total || '0');
+            const rateKey = `${rate}%`;
+            
+            if (!taxByRate.has(rateKey)) {
+              taxByRate.set(rateKey, { rate: rateKey, amount: 0, orders: 0 });
+            }
+            
+            const rateStats = taxByRate.get(rateKey);
+            rateStats.amount += amount;
+            rateStats.orders += 1;
+          });
+        }
+        
+        // Process shipping address for location breakdown
+        if (order.shipping && order.shipping.state) {
+          const state = order.shipping.state;
+          const tax = parseFloat(order.total_tax || '0');
+          
+          if (!taxByLocation.has(state)) {
+            taxByLocation.set(state, { state, amount: 0, rate: 'N/A' });
+          }
+          
+          const locationStats = taxByLocation.get(state);
+          locationStats.amount += tax;
+        }
+      });
+      
       return {
         content: [{
           type: 'text',
           text: JSON.stringify({
             success: true,
-            mode: 'DEMO_DATA',
+            source: 'woocommerce_api',
             tax_reports: {
-              total_taxes_collected: 2791.26,
-              tax_by_rate: [
-                { rate: '8.5%', amount: 1876.35, orders: 134 },
-                { rate: '6.0%', amount: 567.80, orders: 28 },
-                { rate: '10.0%', amount: 347.11, orders: 25 }
-              ],
-              tax_by_location: [
-                { state: 'CA', amount: 1234.56, rate: '8.5%' },
-                { state: 'NY', amount: 987.65, rate: '8.0%' },
-                { state: 'TX', amount: 569.05, rate: '6.25%' }
-              ]
-            },
-            message: '📊 DEMO: Tax collection reports by rate and location'
+              total_taxes_collected: totalTaxesCollected,
+              tax_by_rate: Array.from(taxByRate.values()),
+              tax_by_location: Array.from(taxByLocation.values())
+            }
           }, null, 2)
         }]
       };
+    } catch (error) {
+      throw new Error(`WooCommerce API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-    return { content: [{ type: 'text', text: 'Tax reports - connect real WooCommerce for live data' }] };
   }
 
   private async getRefundStats(params: MCPToolParams): Promise<MCPToolResult> {
-    if (this.isDemoMode()) {
+    // Only real WooCommerce API - no demo data
+    try {
+      const allOrders = await this.wooCommerce.getOrders({ per_page: 500 });
+      const refundedOrders = await this.wooCommerce.getOrders({ per_page: 200, status: 'refunded' });
+      
+      // Calculate real refund statistics
+      let totalRefundAmount = 0;
+      let totalRefunds = 0;
+      const refundReasons = new Map();
+      
+      // Process refunds from orders
+      allOrders.forEach(order => {
+        if (order.refunds && order.refunds.length > 0) {
+          order.refunds.forEach(refund => {
+            totalRefunds += 1;
+            totalRefundAmount += parseFloat(refund.total || '0');
+            
+            // Extract refund reason if available
+            const reason = refund.reason || 'No reason specified';
+            if (!refundReasons.has(reason)) {
+              refundReasons.set(reason, { reason, count: 0, amount: 0 });
+            }
+            
+            const reasonStats = refundReasons.get(reason);
+            reasonStats.count += 1;
+            reasonStats.amount += parseFloat(refund.total || '0');
+          });
+        }
+      });
+      
+      // Calculate refund rate
+      const totalOrderValue = allOrders.reduce((sum, order) => sum + parseFloat(order.total || '0'), 0);
+      const refundRate = totalOrderValue > 0 ? `${((totalRefundAmount / totalOrderValue) * 100).toFixed(2)}%` : '0%';
+      
+      // Calculate monthly trends
+      const currentMonth = new Date().getMonth();
+      const lastMonth = currentMonth - 1;
+      
+      let thisMonthRefunds = 0;
+      let lastMonthRefunds = 0;
+      
+      refundedOrders.forEach(order => {
+        const orderDate = new Date(order.date_created);
+        if (orderDate.getMonth() === currentMonth) {
+          thisMonthRefunds++;
+        } else if (orderDate.getMonth() === lastMonth) {
+          lastMonthRefunds++;
+        }
+      });
+      
+      const trend = thisMonthRefunds > lastMonthRefunds ? 'increasing' : 
+                   thisMonthRefunds < lastMonthRefunds ? 'decreasing' : 'stable';
+      
+      const refundRateNum = parseFloat(refundRate.replace('%', ''));
+      const qualityImpact = refundRateNum < 2 ? 'Low - refund rate under 2%' :
+                           refundRateNum < 5 ? 'Medium - refund rate under 5%' :
+                           'High - refund rate above 5%';
+      
       return {
         content: [{
           type: 'text',
           text: JSON.stringify({
             success: true,
-            mode: 'DEMO_DATA',
+            source: 'woocommerce_api',
             refund_stats: {
-              total_refunds: 2,
-              total_refund_amount: 456.78,
-              refund_rate: '1.07%',
-              refund_reasons: [
-                { reason: 'Defective product', count: 1, amount: 234.50 },
-                { reason: 'Changed mind', count: 1, amount: 222.28 }
-              ],
+              total_refunds: totalRefunds,
+              total_refund_amount: totalRefundAmount,
+              refund_rate: refundRate,
+              refund_reasons: Array.from(refundReasons.values()),
               refund_trends: {
-                this_month: 2,
-                last_month: 1,
-                trend: 'increasing'
+                this_month: thisMonthRefunds,
+                last_month: lastMonthRefunds,
+                trend: trend
               },
-              quality_impact: 'Low - refund rate under 2%'
-            },
-            message: '📊 DEMO: Refund analysis for quality control'
+              quality_impact: qualityImpact
+            }
           }, null, 2)
         }]
       };
+    } catch (error) {
+      throw new Error(`WooCommerce API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-    return { content: [{ type: 'text', text: 'Refund stats - connect real WooCommerce for live data' }] };
   }
 
-  // Demo/Mock data methods
-  private isDemoMode(): boolean {
-    const siteUrl = process.env.WOOCOMMERCE_SITE_URL || '';
-    const consumerKey = process.env.WOOCOMMERCE_CONSUMER_KEY || '';
-    
-    // Check if using demo/test credentials (but allow your-store.com as real store)
-    return consumerKey.includes('test') || 
-           consumerKey.includes('demo') ||
-           consumerKey === 'ck_test_demo_key' ||
-           consumerKey === '' || 
-           siteUrl.includes('example.com') ||
-           siteUrl.includes('demo.com');
-  }
+
 
   // Date and timezone utilities for Mexico City (UTC-6)
   private getMexicoDate(dateStr?: string, contextDate?: string): Date {
