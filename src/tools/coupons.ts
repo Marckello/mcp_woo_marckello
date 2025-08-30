@@ -1210,66 +1210,6 @@ export class CouponTools {
   }
 
   /**
-   * Calculate real usage statistics from WooCommerce orders and coupons
-   */
-  private calculateRealUsageStats(orders: any[], coupons: any[], period: string, limit: number): any {
-    const now = new Date();
-    const periodStart = this.getPeriodStartDate(period);
-    
-    // Filter orders by period
-    const periodOrders = orders.filter((order: any) => {
-      const orderDate = new Date(order.date_created);
-      return orderDate >= periodStart && orderDate <= now;
-    });
-
-    // Calculate coupon usage from orders
-    const couponUsage = new Map<string, { count: number, total_discount: number, coupon_data: any }>();
-    
-    periodOrders.forEach((order: any) => {
-      if (order.coupon_lines && order.coupon_lines.length > 0) {
-        order.coupon_lines.forEach((couponLine: any) => {
-          const code = couponLine.code;
-          const discount = parseFloat(couponLine.discount) || 0;
-          
-          if (!couponUsage.has(code)) {
-            const couponData = coupons.find((c: any) => c.code === code);
-            couponUsage.set(code, {
-              count: 0,
-              total_discount: 0,
-              coupon_data: couponData || { code, id: null }
-            });
-          }
-          
-          const usage = couponUsage.get(code)!;
-          usage.count += 1;
-          usage.total_discount += discount;
-        });
-      }
-    });
-
-    // Convert to sorted array
-    const sortedStats = Array.from(couponUsage.entries())
-      .map(([code, stats]) => ({
-        coupon_code: code,
-        coupon_id: stats.coupon_data.id,
-        usage_count: stats.count,
-        total_discount_applied: stats.total_discount.toFixed(2),
-        coupon_data: stats.coupon_data
-      }))
-      .sort((a, b) => b.usage_count - a.usage_count)
-      .slice(0, limit);
-
-    return {
-      period_summary: {
-        total_orders_with_coupons: periodOrders.filter((o: any) => o.coupon_lines?.length > 0).length,
-        total_coupon_usage: Array.from(couponUsage.values()).reduce((sum, stats) => sum + stats.count, 0),
-        total_discount_amount: Array.from(couponUsage.values()).reduce((sum, stats) => sum + stats.total_discount, 0).toFixed(2)
-      },
-      top_coupons: sortedStats
-    };
-  }
-
-  /**
    * Calculate top coupons from real WooCommerce data
    */
   private calculateRealTopCoupons(orders: any[], coupons: any[], period: string, limit: number): any {
