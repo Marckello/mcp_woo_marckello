@@ -640,6 +640,18 @@ export class CouponTools {
         usage_count: 89,
         usage_limit: null,
         minimum_amount: '200.00'
+      },
+      {
+        id: 5,
+        code: 'holasalud',
+        amount: '10.00',
+        date_created: '2024-08-15T00:00:00',
+        date_expires: '2024-09-30T23:59:59',
+        discount_type: 'percent',
+        description: '10% de descuento para nuevos clientes de salud',
+        usage_count: 42,
+        usage_limit: 500,
+        minimum_amount: '200.00'
       }
     ];
 
@@ -686,6 +698,29 @@ export class CouponTools {
         exclude_product_categories: [],
         free_shipping: false,
         used_by: ['maria.gonzalez@empresa.mx', 'carlos.martinez@salud.mx']
+      },
+      5: {
+        id: 5,
+        code: 'holasalud',
+        amount: '10.00',
+        date_created: '2024-08-15T00:00:00',
+        date_expires: '2024-09-30T23:59:59',
+        date_modified: '2024-08-15T00:00:00',
+        discount_type: 'percent',
+        description: '10% de descuento para nuevos clientes de salud',
+        usage_count: 42,
+        usage_limit: 500,
+        usage_limit_per_user: 1,
+        minimum_amount: '200.00',
+        maximum_amount: '2000.00',
+        individual_use: false,
+        exclude_sale_items: false,
+        product_ids: [],
+        exclude_product_ids: [],
+        product_categories: [15, 16], // Health supplements
+        exclude_product_categories: [],
+        free_shipping: false,
+        used_by: ['cliente.salud@ejemplo.com', 'nueva.cliente@nutricion.mx']
       }
     };
 

@@ -504,9 +504,14 @@ class WooCommerceMCPServer {
 
   async start(): Promise<void> {
     try {
-      // Test WooCommerce connection
-      await this.wooCommerce.healthCheck();
-      this.logger.info('WooCommerce connection test successful');
+      // Skip health check if using demo credentials
+      const consumerKey = this.config.woocommerce.consumerKey;
+      if (consumerKey && !consumerKey.includes('demo') && !consumerKey.includes('test') && !consumerKey.includes('your_')) {
+        await this.wooCommerce.healthCheck();
+        this.logger.info('WooCommerce connection test successful');
+      } else {
+        this.logger.info('Running in demo mode - skipping WooCommerce health check');
+      }
 
       // Setup Express server for HTTP endpoints (health checks, webhooks)
       this.setupExpressServer();
