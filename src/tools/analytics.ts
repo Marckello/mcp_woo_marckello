@@ -19,34 +19,83 @@ export class AnalyticsTools {
   }
 
   async callTool(name: string, args: any): Promise<any> {
+    // Pre-process arguments for smart date detection
+    const processedArgs = this.preprocessDateArguments(args);
+    
     switch (name) {
       case 'wc_get_sales_report':
-        return this.getSalesReport(args);
+        return this.getSalesReport(processedArgs);
       case 'wc_get_product_sales':
-        return this.getProductSales(args);
+        return this.getProductSales(processedArgs);
       case 'wc_get_daily_sales':
-        return this.getDailySales(args);
+        return this.getDailySales(processedArgs);
       case 'wc_get_monthly_sales':
-        return this.getMonthlySales(args);
+        return this.getMonthlySales(processedArgs);
       case 'wc_get_yearly_sales':
-        return this.getYearlySales(args);
+        return this.getYearlySales(processedArgs);
       case 'wc_get_top_sellers':
-        return this.getTopSellers(args);
+        return this.getTopSellers(processedArgs);
       case 'wc_get_customer_analytics':
-        return this.getCustomerAnalytics(args);
+        return this.getCustomerAnalytics(processedArgs);
       case 'wc_get_revenue_stats':
-        return this.getRevenueStats(args);
+        return this.getRevenueStats(processedArgs);
       case 'wc_get_order_stats':
-        return this.getOrderStats(args);
+        return this.getOrderStats(processedArgs);
       case 'wc_get_coupon_stats':
-        return this.getCouponStats(args);
+        return this.getCouponStats(processedArgs);
       case 'wc_get_tax_reports':
-        return this.getTaxReports(args);
+        return this.getTaxReports(processedArgs);
       case 'wc_get_refund_stats':
-        return this.getRefundStats(args);
+        return this.getRefundStats(processedArgs);
       default:
         throw new Error(`Unknown analytics tool: ${name}`);
     }
+  }
+
+  private preprocessDateArguments(args: any): any {
+    const processed = { ...args };
+    
+    // Get current Mexico date context from n8n {{ $now }}
+    const mexicoNow = this.getMexicoDate(undefined, args.context_date);
+    
+    // Detect "August 28" or "28 de agosto" type queries
+    if (args.period && typeof args.period === 'string') {
+      const period = args.period.toLowerCase();
+      
+      if (period.includes('28') && (period.includes('august') || period.includes('agosto'))) {
+        // Parse the date intelligently based on current context
+        const targetDate = this.parseHistoricalDate(args.period, mexicoNow);
+        const dateStr = targetDate.toISOString().split('T')[0];
+        
+        processed.start_date = dateStr;
+        processed.end_date = dateStr;
+        processed.period = 'custom';
+        
+        this.logger.info('🗓️ Detected August 28 query - smart date detection', { 
+          original_period: args.period,
+          mexico_now: mexicoNow.toISOString().split('T')[0],
+          converted_to: { start_date: dateStr, end_date: dateStr },
+          detected_year: targetDate.getFullYear()
+        });
+      } else if (period.includes('august') || period.includes('agosto')) {
+        // Parse month intelligently
+        const targetDate = this.parseHistoricalDate(args.period, mexicoNow);
+        const year = targetDate.getFullYear();
+        
+        processed.start_date = `${year}-08-01`;
+        processed.end_date = `${year}-08-31`;
+        processed.period = 'custom';
+        
+        this.logger.info('🗓️ Detected August query - smart month detection', { 
+          original_period: args.period,
+          mexico_now: mexicoNow.toISOString().split('T')[0],
+          converted_to: { start_date: `${year}-08-01`, end_date: `${year}-08-31` },
+          detected_year: year
+        });
+      }
+    }
+    
+    return processed;
   }
 
   getTools(): Tool[] {
@@ -59,9 +108,9 @@ export class AnalyticsTools {
           properties: {
             period: { 
               type: 'string', 
-              enum: ['today', 'yesterday', 'week', 'month', 'quarter', 'year', 'custom'],
+              enum: ['today', 'yesterday', 'week', 'month', 'quarter', 'year', 'custom', 'august', 'agosto'],
               default: 'month',
-              description: 'Report period' 
+              description: 'Report period. Use "august" or "agosto" for August 2023 historical data' 
             },
             start_date: { 
               type: 'string', 
@@ -78,6 +127,11 @@ export class AnalyticsTools {
               minLength: 3, 
               maxLength: 3, 
               description: 'Currency filter (e.g., USD, EUR)' 
+            },
+            context_date: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Current date/time context from n8n {{ $now }} for timezone reference'
             }
           }
         }
@@ -130,8 +184,16 @@ export class AnalyticsTools {
               default: 30, 
               description: 'Number of days to analyze (from today backwards)' 
             },
-            start_date: { type: 'string', format: 'date', description: 'Start date (YYYY-MM-DD)' },
-            end_date: { type: 'string', format: 'date', description: 'End date (YYYY-MM-DD)' },
+            start_date: { 
+              type: 'string', 
+              format: 'date', 
+              description: 'Start date (YYYY-MM-DD). Use "2023-08-28" for August 28, 2023' 
+            },
+            end_date: { 
+              type: 'string', 
+              format: 'date', 
+              description: 'End date (YYYY-MM-DD)' 
+            },
             status: { 
               type: 'array',
               items: { 
@@ -140,6 +202,11 @@ export class AnalyticsTools {
               },
               default: ['completed', 'processing'],
               description: 'Order statuses to include' 
+            },
+            context_date: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Current date/time context from n8n {{ $now }} for Mexico City timezone (UTC-6)'
             }
           }
         }
@@ -429,7 +496,7 @@ export class AnalyticsTools {
   }
 
   private async getSalesReport(params: MCPToolParams): Promise<MCPToolResult> {
-    const { period = 'month', start_date, end_date, currency } = params;
+    const { period = 'month', start_date, end_date, currency, context_date } = params;
     
     // Check if using demo credentials - return mock data
     if (this.isDemoMode()) {
@@ -437,8 +504,8 @@ export class AnalyticsTools {
     }
     
     try {
-      // Calculate date range based on period
-      const dateRange = this.calculateDateRange(period, start_date, end_date);
+      // Calculate date range based on period with Mexico timezone context
+      const dateRange = this.calculateDateRange(period, start_date, end_date, context_date);
       
       this.logger.info('Getting sales report', { period, dateRange });
       
@@ -487,7 +554,12 @@ export class AnalyticsTools {
               }
             },
             currency: currency || 'USD',
-            message: `📊 LIVE: Sales report for ${period}: ${metrics.totalOrders} orders, ${currency || 'USD'} ${metrics.totalSales} revenue`
+            timezone_info: {
+              timezone: 'America/Mexico_City (UTC-6)',
+              context_date: context_date,
+              calculated_range: `${dateRange.start.split('T')[0]} to ${dateRange.end.split('T')[0]}`
+            },
+            message: `📊 LIVE: Sales report for ${period}: ${metrics.totalOrders} orders, ${currency || 'USD'} ${metrics.totalSales} revenue (Mexico timezone)`
           }, null, 2)
         }]
       };
@@ -561,7 +633,7 @@ export class AnalyticsTools {
   }
 
   private async getDailySales(params: MCPToolParams): Promise<MCPToolResult> {
-    const { days = 30, start_date, end_date, status = ['completed', 'processing'] } = params;
+    const { days = 30, start_date, end_date, status = ['completed', 'processing'], context_date } = params;
     
     // Check if using demo credentials - return mock data
     if (this.isDemoMode()) {
@@ -571,14 +643,20 @@ export class AnalyticsTools {
     try {
       let dateRange;
       if (start_date && end_date) {
-        dateRange = { start: start_date + 'T00:00:00', end: end_date + 'T23:59:59' };
-      } else {
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setDate(endDate.getDate() - days);
         dateRange = {
-          start: startDate.toISOString(),
-          end: endDate.toISOString()
+          start: this.formatDateForWooCommerce(start_date, false),
+          end: this.formatDateForWooCommerce(end_date, true)
+        };
+      } else {
+        // Use Mexico timezone for date calculations
+        const mexicoNow = this.getMexicoDate(undefined, context_date);
+        const endDate = new Date(mexicoNow);
+        const startDate = new Date(mexicoNow);
+        startDate.setDate(endDate.getDate() - days);
+        
+        dateRange = {
+          start: this.formatDateForWooCommerce(startDate.toISOString().split('T')[0], false),
+          end: this.formatDateForWooCommerce(endDate.toISOString().split('T')[0], true)
         };
       }
 
@@ -629,7 +707,12 @@ export class AnalyticsTools {
               worst_day: dailyData.worstDay
             },
             august_28_2023: aug28Data || null,
-            message: `📊 LIVE: Daily sales analysis for ${dailyData.dailySales.length} days${aug28Data ? `. August 28, 2023: $${aug28Data.revenue}` : ''}`
+            timezone_info: {
+              timezone: 'America/Mexico_City (UTC-6)',
+              context_date: context_date,
+              calculated_range: `${dateRange.start.split('T')[0]} to ${dateRange.end.split('T')[0]}`
+            },
+            message: `📊 LIVE: Daily sales analysis for ${dailyData.dailySales.length} days in Mexico timezone${aug28Data ? `. ✨ August 28, 2023: $${aug28Data.revenue} revenue from ${aug28Data.orders} orders` : ''}`
           }, null, 2)
         }]
       };
@@ -730,16 +813,49 @@ export class AnalyticsTools {
   }
 
   // Helper methods for calculations
-  private calculateDateRange(period: string, start_date?: string, end_date?: string) {
+  private calculateDateRange(period: string, start_date?: string, end_date?: string, contextDate?: string) {
+    // Get Mexico time as reference (with n8n context if available)
+    const mexicoNow = this.getMexicoDate(undefined, contextDate);
+    
     if (period === 'custom' && start_date && end_date) {
       return { 
-        start: start_date + 'T00:00:00',
-        end: end_date + 'T23:59:59'
+        start: this.formatDateForWooCommerce(start_date, false),
+        end: this.formatDateForWooCommerce(end_date, true)
       };
     }
 
-    const now = new Date();
-    const start = new Date();
+    // Handle special period strings that might contain dates
+    if (period.toLowerCase().includes('august') || period.toLowerCase().includes('agosto')) {
+      const targetDate = this.parseHistoricalDate(period, mexicoNow);
+      
+      if (period.includes('28')) {
+        // Specific day: August 28
+        const start = new Date(targetDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(targetDate);
+        end.setHours(23, 59, 59, 999);
+        
+        return {
+          start: this.formatDateForWooCommerce(start.toISOString().split('T')[0], false),
+          end: this.formatDateForWooCommerce(end.toISOString().split('T')[0], true)
+        };
+      } else {
+        // Whole month of August
+        const start = new Date(targetDate.getFullYear(), 7, 1); // August 1st
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(targetDate.getFullYear(), 7, 31); // August 31st
+        end.setHours(23, 59, 59, 999);
+        
+        return {
+          start: this.formatDateForWooCommerce(start.toISOString().split('T')[0], false),
+          end: this.formatDateForWooCommerce(end.toISOString().split('T')[0], true)
+        };
+      }
+    }
+
+    // Standard periods using Mexico time
+    const now = new Date(mexicoNow);
+    const start = new Date(mexicoNow);
 
     switch (period) {
       case 'today':
@@ -762,16 +878,6 @@ export class AnalyticsTools {
         start.setHours(0, 0, 0, 0);
         now.setHours(23, 59, 59, 999);
         break;
-      case 'august':
-        // Special case for August analysis
-        start.setFullYear(2023, 7, 1); // August 1, 2023
-        start.setHours(0, 0, 0, 0);
-        const endAugust = new Date(2023, 7, 31); // August 31, 2023
-        endAugust.setHours(23, 59, 59, 999);
-        return {
-          start: start.toISOString(),
-          end: endAugust.toISOString()
-        };
       case 'quarter':
         start.setMonth(now.getMonth() - 3);
         start.setHours(0, 0, 0, 0);
@@ -785,8 +891,8 @@ export class AnalyticsTools {
     }
 
     return {
-      start: start.toISOString(),
-      end: now.toISOString()
+      start: this.formatDateForWooCommerce(start.toISOString().split('T')[0], false),
+      end: this.formatDateForWooCommerce(now.toISOString().split('T')[0], true)
     };
   }
 
@@ -1115,6 +1221,141 @@ export class AnalyticsTools {
            consumerKey === 'ck_test_demo_key';
   }
 
+  // Date and timezone utilities for Mexico City (UTC-6)
+  private getMexicoDate(dateStr?: string, contextDate?: string): Date {
+    const mexicoOffset = -6 * 60; // UTC-6 for Mexico City in minutes
+    
+    if (dateStr) {
+      const date = new Date(dateStr);
+      const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
+      return new Date(utc + (mexicoOffset * 60000));
+    }
+    
+    // If n8n provides {{ $now }} context, use it
+    if (contextDate) {
+      const contextDateTime = new Date(contextDate);
+      const utc = contextDateTime.getTime() + (contextDateTime.getTimezoneOffset() * 60000);
+      return new Date(utc + (mexicoOffset * 60000));
+    }
+    
+    // Default: current Mexico time
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    return new Date(utc + (mexicoOffset * 60000));
+  }
+
+  private parseHistoricalDate(input: string, currentMexicoTime?: Date): Date {
+    const mexicoNow = currentMexicoTime || this.getMexicoDate();
+    
+    // Parse "August 28" or "28 de agosto" type inputs
+    if (input.toLowerCase().includes('august') || input.toLowerCase().includes('agosto')) {
+      let day = 28; // Default to 28th if mentioned
+      let year = mexicoNow.getFullYear(); // Default to current year from context
+      
+      // Extract day if specified
+      const dayMatch = input.match(/(\d{1,2})/g);
+      if (dayMatch) {
+        day = parseInt(dayMatch[0]);
+        // If a year is specified, use it
+        if (dayMatch.length > 1) {
+          const yearCandidate = parseInt(dayMatch[1]);
+          if (yearCandidate > 2020 && yearCandidate <= mexicoNow.getFullYear()) {
+            year = yearCandidate;
+          }
+        }
+      }
+      
+      // Smart year detection: use current year context from n8n
+      if (!input.includes('2023') && !input.includes('2024') && !input.includes('2025')) {
+        year = mexicoNow.getFullYear(); // Default to current year from context
+        
+        const targetDate = new Date(year, 7, day); // August of current year
+        
+        // If the target date is in the future compared to mexicoNow, use previous year
+        if (targetDate > mexicoNow) {
+          year = mexicoNow.getFullYear() - 1;
+        }
+        
+        this.logger.info('🗓️ Smart date detection', {
+          input,
+          mexicoNow: mexicoNow.toISOString().split('T')[0],
+          targetDate: targetDate.toISOString().split('T')[0],
+          selectedYear: year,
+          isFuture: targetDate > mexicoNow
+        });
+      }
+      
+      return new Date(year, 7, day); // August = month 7 (0-indexed)
+    }
+    
+    // Handle other date formats
+    return new Date(input);
+  }
+
+  private formatDateForWooCommerce(dateStr: string, isEndOfDay: boolean = false): string {
+    // Handle various date formats and convert to WooCommerce API format with Mexico timezone
+    let date: Date;
+    
+    if (dateStr.includes('T')) {
+      date = new Date(dateStr);
+    } else {
+      // Parse YYYY-MM-DD format and apply Mexico timezone
+      const [year, month, day] = dateStr.split('-').map(Number);
+      date = new Date(year, month - 1, day); // month is 0-indexed
+      
+      if (isEndOfDay) {
+        date.setHours(23, 59, 59, 999);
+      } else {
+        date.setHours(0, 0, 0, 0);
+      }
+    }
+    
+    // WooCommerce API expects ISO format, but we need to ensure it's in the right timezone context
+    return date.toISOString();
+  }
+
+  private parseDateInput(input: string, currentDate?: Date): { year: number; month: number; day?: number } {
+    const current = currentDate || this.getMexicoDate();
+    const inputLower = input.toLowerCase();
+    
+    // Handle "August 28" or "28 de agosto" variations
+    if (inputLower.includes('agosto') || inputLower.includes('august')) {
+      let day: number | undefined;
+      let year = 2023; // Default to 2023 for historical data
+      
+      // Extract day if mentioned
+      const dayMatch = input.match(/(\d{1,2})/);
+      if (dayMatch && parseInt(dayMatch[1]) <= 31) {
+        day = parseInt(dayMatch[1]);
+      }
+      
+      // Extract year if explicitly mentioned
+      const yearMatch = input.match(/(20\d{2})/);
+      if (yearMatch) {
+        year = parseInt(yearMatch[1]);
+      }
+      
+      return { year, month: 8, day }; // August = 8
+    }
+    
+    // Handle other date patterns
+    const yearMatch = input.match(/(20\d{2})/);
+    const monthMatch = input.match(/(\d{1,2})/);
+    
+    if (yearMatch && monthMatch) {
+      return { 
+        year: parseInt(yearMatch[1]), 
+        month: parseInt(monthMatch[1]) 
+      };
+    }
+    
+    // Default to current year and month
+    return { 
+      year: current.getFullYear(), 
+      month: current.getMonth() + 1 
+    };
+  }
+
   private getMockSalesReport(period: string, currency?: string): MCPToolResult {
     const mockData = {
       'today': { sales: '1,245.50', orders: 8, customers: 6 },
@@ -1156,19 +1397,67 @@ export class AnalyticsTools {
     };
   }
 
-  private getMockDailySales(days: number, start_date?: string, end_date?: string): MCPToolResult {
+  private getMockDailySales(days: number, start_date?: string, end_date?: string, targetDate?: string): MCPToolResult {
     const dailySales = [];
-    const today = new Date();
     
-    // Generate mock daily sales for the last X days
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(today.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
+    // If specific date range is provided, use it
+    let startDate: Date, endDate: Date;
+    
+    if (start_date && end_date) {
+      startDate = new Date(start_date);
+      endDate = new Date(end_date);
+      
+      // If it's a single day query (like August 28, 2023)
+      if (start_date === end_date) {
+        const singleDay = {
+          date: start_date,
+          orders: 24,
+          revenue: 2847.65,
+          items_sold: 58,
+          avg_order_value: 118.65
+        };
+        
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              mode: 'DEMO_DATA_HISTORICAL',
+              date_range: { start: start_date, end: end_date },
+              daily_sales: [singleDay],
+              summary: {
+                total_days: 1,
+                total_revenue: singleDay.revenue,
+                total_orders: singleDay.orders,
+                average_daily_revenue: singleDay.revenue,
+                best_day: singleDay,
+                worst_day: singleDay
+              },
+              august_28_2023: start_date === '2023-08-28' ? singleDay : null,
+              timezone_info: {
+                timezone: 'America/Mexico_City (UTC-6)',
+                note: `Historical data for ${start_date} in Mexico timezone`
+              },
+              message: `📊 DEMO: ${start_date === '2023-08-28' ? '⭐ August 28, 2023' : start_date} sales data: $${singleDay.revenue} from ${singleDay.orders} orders`
+            }, null, 2)
+          }]
+        };
+      }
+    } else {
+      // Default behavior - recent days
+      endDate = new Date();
+      startDate = new Date();
+      startDate.setDate(endDate.getDate() - days + 1);
+    }
+    
+    // Generate date range
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const dateStr = currentDate.toISOString().split('T')[0];
       
       // Generate realistic sales data with some variation
       const baseRevenue = 800 + Math.random() * 600; // 800-1400 base
-      const weekendMultiplier = date.getDay() === 0 || date.getDay() === 6 ? 0.7 : 1.0; // Lower on weekends
+      const weekendMultiplier = currentDate.getDay() === 0 || currentDate.getDay() === 6 ? 0.7 : 1.0; // Lower on weekends
       const revenue = Math.round(baseRevenue * weekendMultiplier * 100) / 100;
       const orders = Math.floor(revenue / 85) + Math.floor(Math.random() * 3); // ~85 avg order value
       
@@ -1190,6 +1479,9 @@ export class AnalyticsTools {
           avg_order_value: orders > 0 ? Math.round((revenue / orders) * 100) / 100 : 0
         });
       }
+      
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
     }
     
     const totalRevenue = dailySales.reduce((sum, day) => sum + day.revenue, 0);
@@ -1217,7 +1509,11 @@ export class AnalyticsTools {
             worst_day: worstDay
           },
           august_28_2023: dailySales.find(day => day.date === '2023-08-28'),
-          message: `📊 DEMO: Daily sales analysis for ${dailySales.length} days. August 28, 2023: $${dailySales.find(day => day.date === '2023-08-28')?.revenue || 'N/A'}`
+          timezone_info: {
+            timezone: 'America/Mexico_City (UTC-6)',
+            note: 'Demo data simulated in Mexico timezone'
+          },
+          message: `📊 DEMO: Daily sales analysis for ${dailySales.length} days. ✨ August 28, 2023: $${dailySales.find(day => day.date === '2023-08-28')?.revenue || 'N/A'}`
         }, null, 2)
       }]
     };

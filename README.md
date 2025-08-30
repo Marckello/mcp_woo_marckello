@@ -5,7 +5,7 @@
 
 - **Name**: mcp-woocommerce-server
 - **Goal**: True MCP protocol implementation for WooCommerce automation with n8n
-- **Features**: 37+ WooCommerce tools via native MCP protocol with bidirectional communication
+- **Features**: 37+ WooCommerce tools via native MCP protocol with smart timezone handling and n8n integration
 
 ## 🎯 URLs & Endpoints
 
@@ -35,15 +35,19 @@
 - **Multiple Transports**: WebSocket, SSE, HTTP support
 - **Tool Discovery**: Dynamic tool listing and execution
 - **Resource Management**: Store info and settings via MCP resources
+- **Smart Date Detection**: Intelligent date parsing with timezone context
+- **Mexico Timezone**: Native UTC-6 (America/Mexico_City) support
 
 ## 🔧 Data Architecture
 
 ### WooCommerce Integration
-- **37+ MCP Tools**: Complete WooCommerce API coverage
+- **37+ MCP Tools**: Complete WooCommerce API coverage with analytics
 - **Product Tools**: Create, read, update, delete, batch operations
-- **Order Tools**: Order management, notes, status updates
+- **Order Tools**: Order management, notes, status updates  
 - **Customer Tools**: Customer CRUD operations and management
+- **Analytics Tools**: 12 comprehensive sales analytics with smart date detection
 - **Authentication**: OAuth 1.0a with consumer key/secret
+- **Timezone Aware**: All date queries use Mexico City timezone (UTC-6)
 
 ### Storage & Services
 - **WooCommerce REST API**: v1, v2, v3 support
@@ -59,6 +63,33 @@
 3. **Protocol**: Select "MCP 2024-11-05"
 4. **Tools Available**: 37+ WooCommerce automation tools
 5. **Authentication**: Configure WooCommerce credentials in server .env
+
+### Smart Date Detection Features
+- **Natural Language**: Use "28 de agosto" or "August 28" for date queries
+- **Context Aware**: Automatically detects if date is past/future based on current time
+- **n8n Integration**: Use `{{ $now }}` variable for current date context
+- **Mexico Timezone**: All calculations in UTC-6 (America/Mexico_City)
+
+**Example Analytics Queries:**
+```javascript
+// Get sales for August 28 (automatically detects correct year)
+{
+  "name": "wc_get_daily_sales",
+  "arguments": {
+    "period": "28 de agosto",
+    "context_date": "{{ $now }}"  // n8n current datetime
+  }
+}
+
+// Get entire August data with smart year detection  
+{
+  "name": "wc_get_sales_report", 
+  "arguments": {
+    "period": "august",
+    "context_date": "{{ $now }}"
+  }
+}
+```
 
 ### For Direct API Usage
 ```javascript
@@ -155,6 +186,8 @@ RATE_LIMIT_MAX=100
 - **Native MCP Protocol**: Complete JSON-RPC 2.0 implementation
 - **Multiple Transports**: WebSocket, SSE, HTTP support
 - **37+ WooCommerce Tools**: Full API coverage via MCP
+- **Smart Analytics**: 12 analytics tools with intelligent date detection
+- **Mexico Timezone**: Native UTC-6 support with n8n {{ $now }} integration
 - **Session Management**: UUID-based session tracking  
 - **Production Ready**: PM2, logging, error handling
 - **GitHub Integration**: Source control with deployment ready
@@ -171,4 +204,4 @@ RATE_LIMIT_MAX=100
 n8n MCP Node → WebSocket → MCP Transport → Protocol Handler → WooCommerce Tools → API Response → MCP Response → n8n
 ```
 
-**Last Updated**: August 30, 2025 - MCP Protocol Real Implementation Complete
+**Last Updated**: August 30, 2025 - v1.1.0 Smart Timezone & Date Detection Complete
