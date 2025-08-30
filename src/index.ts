@@ -25,6 +25,7 @@ import { MCPServerConfig } from './types/mcp.js';
 import { ProductTools } from './tools/products.js';
 import { OrderTools } from './tools/orders.js';
 import { CustomerTools } from './tools/customers.js';
+import { AnalyticsTools } from './tools/analytics.js';
 import { MCPTransport } from './transport/mcp-transport.js';
 import { MCPProtocolHandler } from './protocol/mcp-handler.js';
 
@@ -38,6 +39,7 @@ class WooCommerceMCPServer {
   private productTools!: ProductTools;
   private orderTools!: OrderTools;
   private customerTools!: CustomerTools;
+  private analyticsTools!: AnalyticsTools;
   private config: MCPServerConfig;
   private expressApp?: express.Application;
   private httpServer?: any;
@@ -108,12 +110,14 @@ class WooCommerceMCPServer {
       this.productTools = new ProductTools(this.wooCommerce, this.logger);
       this.orderTools = new OrderTools(this.wooCommerce, this.logger);
       this.customerTools = new CustomerTools(this.wooCommerce, this.logger);
+      this.analyticsTools = new AnalyticsTools(this.wooCommerce, this.logger);
       
       // Initialize MCP Protocol components
       this.mcpProtocol = new MCPProtocolHandler(
         this.productTools,
         this.orderTools, 
         this.customerTools,
+        this.analyticsTools,
         this.logger
       );
       
@@ -135,7 +139,8 @@ class WooCommerceMCPServer {
       const allTools = [
         ...this.productTools.getTools(),
         ...this.orderTools.getTools(),
-        ...this.customerTools.getTools()
+        ...this.customerTools.getTools(),
+        ...this.analyticsTools.getTools()
       ];
 
       this.logger.debug(`Listed ${allTools.length} available tools`);
@@ -161,6 +166,12 @@ class WooCommerceMCPServer {
           result = await this.orderTools.handleTool(name, args || {});
         } else if (name.startsWith('wc_') && name.includes('customer')) {
           result = await this.customerTools.handleTool(name, args || {});
+        } else if (name.startsWith('wc_get_sales') || name.startsWith('wc_get_daily') || 
+                   name.startsWith('wc_get_monthly') || name.startsWith('wc_get_yearly') || 
+                   name.startsWith('wc_get_top') || name.startsWith('wc_get_revenue') || 
+                   name.startsWith('wc_get_coupon') || name.startsWith('wc_get_tax') || 
+                   name.startsWith('wc_get_refund') || name.startsWith('wc_get_product_sales')) {
+          result = await this.analyticsTools.handleTool(name, args || {});
         } else {
           throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
         }

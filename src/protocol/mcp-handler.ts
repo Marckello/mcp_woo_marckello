@@ -2,23 +2,27 @@ import { MCPMessage } from '../transport/mcp-transport.js';
 import { ProductTools } from '../tools/products.js';
 import { OrderTools } from '../tools/orders.js';
 import { CustomerTools } from '../tools/customers.js';
+import { AnalyticsTools } from '../tools/analytics.js';
 import { Logger } from '../utils/logger.js';
 
 export class MCPProtocolHandler {
   private productTools: ProductTools;
   private orderTools: OrderTools;
   private customerTools: CustomerTools;
+  private analyticsTools: AnalyticsTools;
   private logger: Logger;
 
   constructor(
     productTools: ProductTools,
     orderTools: OrderTools,
     customerTools: CustomerTools,
+    analyticsTools: AnalyticsTools,
     logger: Logger
   ) {
     this.productTools = productTools;
     this.orderTools = orderTools;
     this.customerTools = customerTools;
+    this.analyticsTools = analyticsTools;
     this.logger = logger;
   }
 
@@ -139,7 +143,8 @@ export class MCPProtocolHandler {
     const allTools = [
       ...this.productTools.getToolDefinitions(),
       ...this.orderTools.getToolDefinitions(),
-      ...this.customerTools.getToolDefinitions()
+      ...this.customerTools.getToolDefinitions(),
+      ...this.analyticsTools.getToolDefinitions()
     ];
 
     this.logger.info(`Returning ${allTools.length} tools`, { sessionId });
@@ -166,14 +171,20 @@ export class MCPProtocolHandler {
           name?.startsWith('wc_update_product') || name?.startsWith('wc_delete_product') || 
           name?.startsWith('wc_batch_products')) {
         result = await this.productTools.callTool(name, args);
-      } else if (name?.startsWith('wc_get_orders') || name?.startsWith('wc_create_order') || 
+      } else if (name?.startsWith('wc_get_order') || name?.startsWith('wc_create_order') || 
                  name?.startsWith('wc_update_order') || name?.startsWith('wc_delete_order') || 
-                 name?.startsWith('wc_get_order_notes') || name?.startsWith('wc_add_order')) {
+                 name?.startsWith('wc_add_order')) {
         result = await this.orderTools.callTool(name, args);
-      } else if (name?.startsWith('wc_get_customers') || name?.startsWith('wc_create_customer') || 
+      } else if (name?.startsWith('wc_get_customer') || name?.startsWith('wc_create_customer') || 
                  name?.startsWith('wc_update_customer') || name?.startsWith('wc_delete_customer') || 
-                 name?.startsWith('wc_batch_customers') || name?.startsWith('wc_get_customer')) {
+                 name?.startsWith('wc_batch_customer')) {
         result = await this.customerTools.callTool(name, args);
+      } else if (name?.startsWith('wc_get_sales') || name?.startsWith('wc_get_daily') || 
+                 name?.startsWith('wc_get_monthly') || name?.startsWith('wc_get_yearly') || 
+                 name?.startsWith('wc_get_top') || name?.startsWith('wc_get_revenue') || 
+                 name?.startsWith('wc_get_coupon') || name?.startsWith('wc_get_tax') || 
+                 name?.startsWith('wc_get_refund') || name?.startsWith('wc_get_product_sales')) {
+        result = await this.analyticsTools.callTool(name, args);
       } else {
         throw new Error(`Unknown tool: ${name}`);
       }
