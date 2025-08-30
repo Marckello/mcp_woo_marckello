@@ -108,4 +108,13 @@ storage/
 
 # Backup files
 *.backup
-*.bak
+*.bak# Environment variables with sensitive data
+.env
+.env.local
+.env.production
+*.env
+# Logs with sensitive data
+logs/
+*.log
+pm2.log
+.pm2/

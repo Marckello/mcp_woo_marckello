@@ -1248,7 +1248,7 @@ export class AnalyticsTools {
     const siteUrl = process.env.WOOCOMMERCE_SITE_URL || '';
     const consumerKey = process.env.WOOCOMMERCE_CONSUMER_KEY || '';
     
-    // Check if using demo/test credentials (but allow adaptohealmx.com as real store)
+    // Check if using demo/test credentials (but allow your-store.com as real store)
     return consumerKey.includes('test') || 
            consumerKey.includes('demo') ||
            consumerKey === 'ck_test_demo_key' ||
