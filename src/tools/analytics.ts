@@ -627,8 +627,7 @@ export class AnalyticsTools {
         }]
       };
     } catch (error) {
-      // Handle API errors
-
+      throw new Error(`WooCommerce API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -1048,7 +1047,7 @@ export class AnalyticsTools {
           
           const stats = productStats.get(productId);
           stats.quantity_sold += item.quantity;
-          stats.revenue += parseFloat(item.total);
+          stats.revenue += parseFloat(item.total || '0');
           stats.orders += 1;
           stats.avg_price = stats.revenue / stats.quantity_sold;
         }
@@ -1088,7 +1087,7 @@ export class AnalyticsTools {
       const currentYear = new Date().getFullYear();
       
       const newCustomersThisMonth = customers.filter(customer => {
-        const createdDate = new Date(customer.date_created);
+        const createdDate = new Date(customer.date_created || new Date());
         return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear;
       }).length;
       
@@ -1098,7 +1097,7 @@ export class AnalyticsTools {
         const customerId = order.customer_id;
         if (customerId) {
           const revenue = customerRevenue.get(customerId) || 0;
-          customerRevenue.set(customerId, revenue + parseFloat(order.total));
+          customerRevenue.set(customerId, revenue + parseFloat(order.total || '0'));
         }
       }
       
@@ -1213,7 +1212,7 @@ export class AnalyticsTools {
       const refundedOrders = allOrders.filter(order => order.status === 'refunded').length;
       
       // Calculate payment methods distribution
-      const paymentMethods = {};
+      const paymentMethods: { [key: string]: number } = {};
       allOrders.forEach(order => {
         const method = order.payment_method_title || order.payment_method || 'unknown';
         paymentMethods[method] = (paymentMethods[method] || 0) + 1;
@@ -1241,12 +1240,12 @@ export class AnalyticsTools {
       });
       
       // Calculate average processing time for completed orders
-      const processingTimes = [];
+      const processingTimes: number[] = [];
       const completedOrdersList = allOrders.filter(order => order.status === 'completed');
       
       completedOrdersList.forEach(order => {
-        const created = new Date(order.date_created);
-        const completed = new Date(order.date_completed || order.date_modified);
+        const created = new Date(order.date_created || new Date());
+        const completed = new Date(order.date_completed || order.date_modified || new Date());
         const diffHours = (completed.getTime() - created.getTime()) / (1000 * 60 * 60);
         if (diffHours > 0) {
           processingTimes.push(diffHours);
@@ -1446,7 +1445,7 @@ export class AnalyticsTools {
       let lastMonthRefunds = 0;
       
       refundedOrders.forEach(order => {
-        const orderDate = new Date(order.date_created);
+        const orderDate = new Date(order.date_created || new Date());
         if (orderDate.getMonth() === currentMonth) {
           thisMonthRefunds++;
         } else if (orderDate.getMonth() === lastMonth) {
