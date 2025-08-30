@@ -232,13 +232,45 @@ For real WooCommerce integration, ensure your API key has proper permissions:
 n8n MCP Node → WebSocket → MCP Transport → Protocol Handler → WooCommerce Tools → API Response → MCP Response → n8n
 ```
 
-**Last Updated**: August 30, 2025 - v1.3.0 Customer Analytics & Promotions Complete
+**Last Updated**: August 30, 2025 - v1.3.3 Production-Safe Data Handling Complete
 
-### 🆕 v1.3.1 Latest Features
+## 🔒 Production vs Development Mode
+
+### ✅ **Production Mode** (Real WooCommerce Data)
+When you deploy with **real WooCommerce credentials**:
+- **Data Source**: `"source": "woocommerce_api"`
+- **Real Data**: Actual coupons, orders, customers from your store
+- **Live Statistics**: Real usage counts, revenue, conversion rates
+- **No Warnings**: Clean responses with actual business data
+
+### ⚠️ **Demo Mode** (Development Data)
+When credentials are missing or contain `demo`/`test`:
+- **Data Source**: `"source": "demo_data"`  
+- **Demo Data**: Mexican market sample data for development
+- **Clear Warnings**: `"data_warning": "⚠️ DEMO DATA - Replace with real WooCommerce credentials"`
+- **Testing Safe**: Perfect for development and n8n workflow testing
+
+### 🔄 **Automatic Detection**
+The system automatically detects mode based on your `.env` configuration:
+```bash
+# Production Mode (uses real API)
+WOOCOMMERCE_SITE_URL=https://your-real-store.com
+WOOCOMMERCE_CONSUMER_KEY=ck_real_key_here
+WOOCOMMERCE_CONSUMER_SECRET=cs_real_secret_here
+
+# Demo Mode (uses demo data)  
+WOOCOMMERCE_SITE_URL=https://demo.woothemes.com
+WOOCOMMERCE_CONSUMER_KEY=ck_demo_key_for_testing
+WOOCOMMERCE_CONSUMER_SECRET=cs_demo_secret_for_testing
+```
+
+### 🆕 v1.3.3 Latest Features
+- **🔒 Production-Safe Data Handling**: Intelligent detection between real WooCommerce API and demo mode
 - **Order Email Lookup**: `wc_get_orders_by_email` - Find orders by customer email address for support queries
-- **Customer Analytics**: `wc_get_top_customers` - Identify top customers by spending, orders, or average value
-- **Purchase History**: `wc_get_customer_purchase_history` - Detailed customer purchase patterns and history
-- **Coupon Analytics**: `wc_get_coupon_usage_stats` - Complete coupon usage statistics and top performing coupons
+- **Real API Integration**: Uses actual WooCommerce data when valid credentials are configured
+- **Demo Mode Warnings**: Clear `⚠️ DEMO DATA` warnings when using development data
+- **Coupon Analytics**: Complete coupon usage statistics with real store data or demo fallback
+- **Customer Analytics**: `wc_get_top_customers` - Real customer data from your WooCommerce store
 - **Enhanced Routing**: Smart tool routing for orders, customers, analytics, and coupons
-- **Mexican Market Data**: Realistic customer profiles with Mexico addresses and phone numbers
+- **Mexican Market Support**: Realistic demo data for development and testing
 - **Schema Optimization**: All schemas optimized for n8n compatibility (no default values)
