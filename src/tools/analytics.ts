@@ -1163,7 +1163,7 @@ export class AnalyticsTools {
         // Get refunds for this order
         if (order.refunds && order.refunds.length > 0) {
           for (const refund of order.refunds) {
-            refundsIssued += parseFloat(refund.total || '0');
+            refundsIssued += parseFloat(refund.amount || '0');
           }
         }
       }
@@ -1418,7 +1418,7 @@ export class AnalyticsTools {
         if (order.refunds && order.refunds.length > 0) {
           order.refunds.forEach(refund => {
             totalRefunds += 1;
-            totalRefundAmount += parseFloat(refund.total || '0');
+            totalRefundAmount += parseFloat(refund.amount || '0');
             
             // Extract refund reason if available
             const reason = refund.reason || 'No reason specified';
@@ -1428,7 +1428,7 @@ export class AnalyticsTools {
             
             const reasonStats = refundReasons.get(reason);
             reasonStats.count += 1;
-            reasonStats.amount += parseFloat(refund.total || '0');
+            reasonStats.amount += parseFloat(refund.amount || '0');
           });
         }
       });
