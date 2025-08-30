@@ -411,11 +411,17 @@ class WooCommerceMCPServer {
             const { name: toolName, arguments: toolArgs } = params;
             
             // Route to appropriate tool handler
-            if (toolName.startsWith('wc_product')) {
+            if (toolName.startsWith('wc_get_products') || toolName.startsWith('wc_create_product') || 
+                toolName.startsWith('wc_update_product') || toolName.startsWith('wc_delete_product') || 
+                toolName.startsWith('wc_batch_products')) {
               result = await this.productTools.callTool(toolName, toolArgs);
-            } else if (toolName.startsWith('wc_order')) {
+            } else if (toolName.startsWith('wc_get_orders') || toolName.startsWith('wc_create_order') || 
+                       toolName.startsWith('wc_update_order') || toolName.startsWith('wc_delete_order') || 
+                       toolName.startsWith('wc_get_order_notes') || toolName.startsWith('wc_add_order')) {
               result = await this.orderTools.callTool(toolName, toolArgs);
-            } else if (toolName.startsWith('wc_customer')) {
+            } else if (toolName.startsWith('wc_get_customers') || toolName.startsWith('wc_create_customer') || 
+                       toolName.startsWith('wc_update_customer') || toolName.startsWith('wc_delete_customer') || 
+                       toolName.startsWith('wc_batch_customers') || toolName.startsWith('wc_get_customer')) {
               result = await this.customerTools.callTool(toolName, toolArgs);
             } else {
               throw new Error(`Unknown tool: ${toolName}`);
