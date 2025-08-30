@@ -486,14 +486,21 @@ export class CouponTools {
 
     this.logger.info('🔍 Finding coupon by code', { code, include_usage_stats });
 
+    // DEBUG LOG: Check demo mode status
+    this.logger.info(`🔍 DEBUG: isDemoMode() = ${this.isDemoMode()}, searching for code: ${code}`);
+    
     // Try real WooCommerce API first, fallback to demo data
     if (!this.isDemoMode()) {
       try {
+        this.logger.info('🔄 Attempting real WooCommerce API call for coupon search...');
         // Search for coupon by code in real WooCommerce
         const realCoupons = await this.wooCommerce.getCoupons({ search: code, per_page: 100 });
+        this.logger.info(`📦 Real API returned ${realCoupons.length} coupons`);
+        
         const foundCoupon = realCoupons.find((c: any) => c.code.toLowerCase() === code.toLowerCase());
         
         if (foundCoupon) {
+          this.logger.info(`✅ Found real coupon: ${foundCoupon.code}`);
           return {
             content: [{
               type: 'text',
@@ -506,29 +513,49 @@ export class CouponTools {
               }, null, 2)
             }]
           };
+        } else {
+          this.logger.info(`❌ Coupon '${code}' not found in real WooCommerce store`);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                search_code: code,
+                message: `Coupon '${code}' not found in WooCommerce store`,
+                source: 'woocommerce_api'
+              }, null, 2)
+            }]
+          };
         }
       } catch (error) {
-        this.logger.warn('Failed to search real coupons, using demo data', { error: error instanceof Error ? error.message : error });
+        this.logger.error('🚨 REAL API FAILED:', { error: error instanceof Error ? error.message : error });
+        throw new Error(`WooCommerce API error when searching for '${code}': ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
 
-    // Fallback to demo data (development/testing only)
-    const coupon = this.findCouponByCode(code, include_usage_stats);
-    
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          success: true,
-          search_code: code,
-          data: coupon,
-          source: coupon ? 'demo_data' : 'not_found',
-          message: coupon 
-            ? `Found coupon: ${coupon.code} (demo data for development)` 
-            : `Coupon with code '${code}' not found`
-        }, null, 2)
-      }]
-    };
+    // ONLY show demo data if explicitly in demo mode
+    if (this.isDemoMode()) {
+      this.logger.info('📋 Using demo data because isDemoMode() = true');
+      const coupon = this.findCouponByCode(code, include_usage_stats);
+      
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            search_code: code,
+            data: coupon,
+            source: coupon ? 'demo_data' : 'not_found',
+            message: coupon 
+              ? `⚠️ DEMO DATA: ${coupon.code}` 
+              : `Coupon with code '${code}' not found (demo mode)`
+          }, null, 2)
+        }]
+      };
+    }
+
+    // If not in demo mode and we reach here, throw error
+    throw new Error(`Coupon '${code}' not found and not in demo mode`);
   }
 
   private async getCouponUsageStats(params: MCPToolParams): Promise<MCPToolResult> {
