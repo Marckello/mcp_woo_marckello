@@ -10,6 +10,22 @@ export class CouponTools {
     private logger: Logger
   ) {}
 
+  private isDemoMode(): boolean {
+    // Check if we're in demo mode based on environment variables
+    const consumerKey = process.env.WOOCOMMERCE_CONSUMER_KEY || '';
+    const siteUrl = process.env.WOOCOMMERCE_SITE_URL || '';
+    
+    return (
+      consumerKey.includes('demo') || 
+      consumerKey.includes('test') || 
+      consumerKey.includes('your_') ||
+      siteUrl.includes('demo') ||
+      siteUrl.includes('your-store') ||
+      !consumerKey || 
+      !siteUrl
+    );
+  }
+
   getToolDefinitions(): any[] {
     return this.getTools().map(tool => ({
       name: tool.name,
@@ -376,7 +392,28 @@ export class CouponTools {
 
     this.logger.info('📋 Getting coupons list', { page, per_page, search, code });
 
-    // Generate realistic Mexican market coupons
+    // Try real WooCommerce API first, fallback to demo data
+    if (!this.isDemoMode()) {
+      try {
+        const realCoupons = await this.wooCommerce.getCoupons({ page, per_page, search });
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              data: realCoupons,
+              pagination: { page, per_page, total: realCoupons.length },
+              source: 'woocommerce_api',
+              message: `Retrieved ${realCoupons.length} coupons from WooCommerce store`
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        this.logger.warn('Failed to fetch real coupons, using demo data', { error: error instanceof Error ? error.message : error });
+      }
+    }
+
+    // Fallback to demo data (development/testing only)
     const coupons = this.generateCouponsData(page, per_page, search, code);
     
     return {
@@ -386,7 +423,8 @@ export class CouponTools {
           success: true,
           data: coupons,
           pagination: { page, per_page, total: 25 },
-          message: `Retrieved ${coupons.length} coupons (page ${page})`
+          source: 'demo_data',
+          message: `Retrieved ${coupons.length} coupons (demo data for development)`
         }, null, 2)
       }]
     };
@@ -422,6 +460,33 @@ export class CouponTools {
 
     this.logger.info('🔍 Finding coupon by code', { code, include_usage_stats });
 
+    // Try real WooCommerce API first, fallback to demo data
+    if (!this.isDemoMode()) {
+      try {
+        // Search for coupon by code in real WooCommerce
+        const realCoupons = await this.wooCommerce.getCoupons({ search: code, per_page: 100 });
+        const foundCoupon = realCoupons.find((c: any) => c.code.toLowerCase() === code.toLowerCase());
+        
+        if (foundCoupon) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: true,
+                search_code: code,
+                data: foundCoupon,
+                source: 'woocommerce_api',
+                message: `Found coupon: ${foundCoupon.code} (from WooCommerce store)`
+              }, null, 2)
+            }]
+          };
+        }
+      } catch (error) {
+        this.logger.warn('Failed to search real coupons, using demo data', { error: error instanceof Error ? error.message : error });
+      }
+    }
+
+    // Fallback to demo data (development/testing only)
     const coupon = this.findCouponByCode(code, include_usage_stats);
     
     return {
@@ -431,7 +496,10 @@ export class CouponTools {
           success: true,
           search_code: code,
           data: coupon,
-          message: coupon ? `Found coupon: ${coupon.code}` : `Coupon with code '${code}' not found`
+          source: coupon ? 'demo_data' : 'not_found',
+          message: coupon 
+            ? `Found coupon: ${coupon.code} (demo data for development)` 
+            : `Coupon with code '${code}' not found`
         }, null, 2)
       }]
     };
@@ -456,6 +524,37 @@ export class CouponTools {
       sort_by 
     });
 
+    // Try real WooCommerce API first, fallback to demo data
+    if (!this.isDemoMode()) {
+      try {
+        // Get real orders and coupons to calculate usage stats
+        const realOrders = await this.wooCommerce.getOrders({ 
+          per_page: 100,
+          status: 'completed'
+        });
+        const realCoupons = await this.wooCommerce.getCoupons({ per_page: 100 });
+        
+        // Calculate real usage statistics from orders
+        const realStats = this.calculateRealUsageStats(realOrders, realCoupons, period, limit);
+        
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              period: period,
+              analysis: realStats,
+              source: 'woocommerce_api',
+              message: `Coupon usage statistics for period: ${period} (from WooCommerce store)`
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        this.logger.warn('Failed to fetch real coupon stats, using demo data', { error: error instanceof Error ? error.message : error });
+      }
+    }
+
+    // Fallback to demo data (development/testing only)
     const stats = this.generateCouponUsageStatsData(
       period, 
       coupon_id, 
@@ -471,7 +570,8 @@ export class CouponTools {
           success: true,
           period: period,
           analysis: stats,
-          message: `Coupon usage statistics for period: ${period}`
+          source: 'demo_data',
+          message: `Coupon usage statistics for period: ${period} (demo data for development)`
         }, null, 2)
       }]
     };
@@ -763,7 +863,8 @@ export class CouponTools {
     limit: number = 10, 
     sortBy: string = 'usage_count'
   ): any {
-    // Specific stats for August 2024 since that's what Marco is asking about
+    // ⚠️ DEMO DATA ONLY - This is used when no real WooCommerce connection exists
+    // In production with real credentials, this method won't be called
     const augustStats = {
       period_summary: {
         total_coupons_used: 4,
@@ -771,7 +872,8 @@ export class CouponTools {
         total_discount_amount: 125750.00,
         total_revenue_impact: 2650000.00,
         average_discount_per_use: 204.47,
-        conversion_rate: '61.5%'
+        conversion_rate: '61.5%',
+        data_warning: '⚠️ DEMO DATA - Replace with real WooCommerce credentials for production'
       },
       top_coupons: [
         {
@@ -863,6 +965,77 @@ export class CouponTools {
     }
 
     return augustStats;
+  }
+
+  private calculateRealUsageStats(orders: any[], coupons: any[], period: string, limit: number): any {
+    // Calculate real statistics from WooCommerce orders and coupons
+    const couponUsage = new Map();
+    let totalDiscountAmount = 0;
+    let totalRevenueImpact = 0;
+
+    // Process each order to extract coupon usage
+    orders.forEach(order => {
+      if (order.coupon_lines && order.coupon_lines.length > 0) {
+        order.coupon_lines.forEach((couponLine: any) => {
+          const code = couponLine.code;
+          const discount = parseFloat(couponLine.discount || 0);
+          const orderTotal = parseFloat(order.total || 0);
+
+          if (!couponUsage.has(code)) {
+            couponUsage.set(code, {
+              code,
+              usage_count: 0,
+              discount_amount: 0,
+              revenue_impact: 0,
+              orders: []
+            });
+          }
+
+          const stats = couponUsage.get(code);
+          stats.usage_count++;
+          stats.discount_amount += discount;
+          stats.revenue_impact += orderTotal;
+          stats.orders.push(order.id);
+
+          totalDiscountAmount += discount;
+          totalRevenueImpact += orderTotal;
+        });
+      }
+    });
+
+    // Convert to array and sort
+    const topCoupons = Array.from(couponUsage.values())
+      .sort((a, b) => b.usage_count - a.usage_count)
+      .slice(0, limit)
+      .map(stats => {
+        // Find matching coupon details
+        const couponDetails = coupons.find((c: any) => c.code === stats.code);
+        return {
+          coupon_id: couponDetails?.id || 0,
+          code: stats.code,
+          usage_count: stats.usage_count,
+          discount_amount: stats.discount_amount,
+          revenue_impact: stats.revenue_impact,
+          conversion_rate: `${((stats.usage_count / orders.length) * 100).toFixed(1)}%`,
+          average_order_value: stats.usage_count > 0 ? (stats.revenue_impact / stats.usage_count) : 0,
+          description: couponDetails?.description || 'Real coupon from store',
+          status: couponDetails?.status || 'unknown',
+          expires: couponDetails?.date_expires || 'unknown'
+        };
+      });
+
+    return {
+      period_summary: {
+        total_coupons_used: couponUsage.size,
+        total_usage_count: Array.from(couponUsage.values()).reduce((sum, stats) => sum + stats.usage_count, 0),
+        total_discount_amount: totalDiscountAmount,
+        total_revenue_impact: totalRevenueImpact,
+        average_discount_per_use: couponUsage.size > 0 ? (totalDiscountAmount / Array.from(couponUsage.values()).reduce((sum, stats) => sum + stats.usage_count, 0)) : 0,
+        conversion_rate: orders.length > 0 ? `${((Array.from(couponUsage.values()).reduce((sum, stats) => sum + stats.usage_count, 0) / orders.length) * 100).toFixed(1)}%` : '0%'
+      },
+      top_coupons: topCoupons,
+      data_source: 'real_woocommerce_data'
+    };
   }
 
   private generateTopCouponsUsageData(
