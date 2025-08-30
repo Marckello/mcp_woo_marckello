@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import WebSocket from 'ws';
 import { Logger } from '../utils/logger.js';
 
@@ -51,7 +51,7 @@ export class MCPTransport extends EventEmitter {
     });
 
     this.wsServer.on('connection', (ws: WebSocket, request: any) => {
-      const sessionId = uuidv4();
+      const sessionId = randomUUID();
       
       const session: MCPSession = {
         id: sessionId,
@@ -114,7 +114,7 @@ export class MCPTransport extends EventEmitter {
 
   // Handle Server-Sent Events
   handleSSEConnection(req: any, res: any): string {
-    const sessionId = uuidv4();
+    const sessionId = randomUUID();
     
     // Set SSE headers
     res.writeHead(200, {
