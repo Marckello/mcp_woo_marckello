@@ -10,6 +10,22 @@ export class CustomerTools {
     private logger: Logger
   ) {}
 
+  private isDemoMode(): boolean {
+    // Check if we're in demo mode based on environment variables
+    const consumerKey = process.env.WOOCOMMERCE_CONSUMER_KEY || '';
+    const siteUrl = process.env.WOOCOMMERCE_SITE_URL || '';
+    
+    return (
+      consumerKey.includes('demo') || 
+      consumerKey.includes('test') || 
+      consumerKey.includes('your_') ||
+      siteUrl.includes('demo') ||
+      siteUrl.includes('your-store') ||
+      !consumerKey || 
+      !siteUrl
+    );
+  }
+
   getToolDefinitions(): any[] {
     return this.getTools().map(tool => ({
       name: tool.name,
@@ -597,7 +613,36 @@ export class CustomerTools {
 
     this.logger.info('🏆 Getting top customers', { metric, limit, period, min_orders });
 
-    // Generate realistic Mexican customer data
+    // Try real WooCommerce API first, fallback to demo data
+    if (!this.isDemoMode()) {
+      try {
+        // Get real customers from WooCommerce
+        const realCustomers = await this.wooCommerce.getCustomers({ per_page: 100 });
+        // Get real orders to calculate customer metrics
+        const realOrders = await this.wooCommerce.getOrders({ per_page: 500, status: 'completed' });
+        
+        // Calculate real customer metrics
+        const realTopCustomers = this.calculateRealCustomerMetrics(realCustomers, realOrders, metric, limit, min_orders);
+        
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              period: period,
+              metric: metric,
+              top_customers: realTopCustomers,
+              source: 'woocommerce_api',
+              message: `Top ${realTopCustomers.length} customers by ${metric} from WooCommerce store`
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        this.logger.warn('Failed to fetch real customers, using demo data', { error: error instanceof Error ? error.message : error });
+      }
+    }
+
+    // Fallback to demo data (development/testing only)
     const topCustomers = this.generateTopCustomersData(metric, limit, period, min_orders);
     
     return {
@@ -609,7 +654,8 @@ export class CustomerTools {
           metric: metric,
           min_orders: min_orders,
           top_customers: topCustomers,
-          message: `Top ${limit} customers by ${metric} for period: ${period}`
+          source: 'demo_data',
+          message: `Top ${limit} customers by ${metric} for period: ${period} (demo data for development)`
         }, null, 2)
       }]
     };
@@ -663,6 +709,8 @@ export class CustomerTools {
   }
 
   private generateTopCustomersData(metric: string, limit: number, period: string, minOrders: number): any[] {
+    // ⚠️ DEMO DATA ONLY - This is used when no real WooCommerce connection exists
+    // In production with real credentials, this method won't be called
     const customers = [
       {
         customer_id: 45,
@@ -910,7 +958,51 @@ export class CustomerTools {
 
     this.logger.info('🎯 Getting active promotions', { type, status, category, min_discount });
 
-    // Generate realistic Mexican market promotions
+    // Try real WooCommerce API first, fallback to demo data
+    if (!this.isDemoMode()) {
+      try {
+        // Get real coupons and sales from WooCommerce
+        const realCoupons = await this.wooCommerce.getCoupons({ per_page: 100 });
+        const realPromotions = realCoupons
+          .filter((coupon: any) => coupon.status === 'publish')
+          .map((coupon: any) => ({
+            id: coupon.id,
+            name: coupon.code,
+            type: 'coupon',
+            status: 'active',
+            category: 'general',
+            discount_type: coupon.discount_type,
+            discount_value: parseFloat(coupon.amount || 0),
+            description: coupon.description || `${coupon.amount}${coupon.discount_type === 'percent' ? '%' : ' MXN'} discount`,
+            code: coupon.code,
+            valid_from: coupon.date_created,
+            valid_until: coupon.date_expires,
+            min_amount: parseFloat(coupon.minimum_amount || 0),
+            usage_limit: coupon.usage_limit,
+            used_count: coupon.usage_count || 0,
+            currency: 'MXN'
+          }))
+          .filter((promo: any) => type === 'all' || promo.type === type)
+          .filter((promo: any) => promo.discount_value >= min_discount);
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              filter: { type, status, category, min_discount },
+              promotions: realPromotions,
+              source: 'woocommerce_api',
+              message: `Found ${realPromotions.length} ${status} promotions from WooCommerce store`
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        this.logger.warn('Failed to fetch real promotions, using demo data', { error: error instanceof Error ? error.message : error });
+      }
+    }
+
+    // Fallback to demo data (development/testing only)
     const promotions = this.generateActivePromotionsData(type, status, category, min_discount);
     
     return {
@@ -920,13 +1012,16 @@ export class CustomerTools {
           success: true,
           filter: { type, status, category, min_discount },
           promotions: promotions,
-          message: `Found ${promotions.length} ${status} promotions${category ? ` for ${category}` : ''}`
+          source: 'demo_data',
+          message: `Found ${promotions.length} ${status} promotions (demo data for development)`
         }, null, 2)
       }]
     };
   }
 
   private generateActivePromotionsData(type: string, status: string, category?: string, minDiscount: number = 0): any[] {
+    // ⚠️ DEMO DATA ONLY - This is used when no real WooCommerce connection exists
+    // In production with real credentials, this method won't be called
     const allPromotions = [
       {
         id: 'AGOSTO2024',
@@ -1065,5 +1160,64 @@ export class CustomerTools {
     }
 
     return filteredPromotions;
+  }
+
+  private calculateRealCustomerMetrics(customers: any[], orders: any[], metric: string, limit: number, minOrders: number): any[] {
+    // Calculate real customer metrics from WooCommerce data
+    const customerMetrics = new Map();
+
+    // Process each customer
+    customers.forEach(customer => {
+      customerMetrics.set(customer.id, {
+        id: customer.id,
+        email: customer.email,
+        first_name: customer.first_name,
+        last_name: customer.last_name,
+        total_spent: 0,
+        orders_count: 0,
+        average_order_value: 0,
+        last_order_date: null,
+        registration_date: customer.date_created
+      });
+    });
+
+    // Process orders to calculate metrics
+    orders.forEach(order => {
+      const customerId = order.customer_id;
+      if (customerId && customerMetrics.has(customerId)) {
+        const metrics = customerMetrics.get(customerId);
+        metrics.total_spent += parseFloat(order.total || 0);
+        metrics.orders_count += 1;
+        if (!metrics.last_order_date || order.date_created > metrics.last_order_date) {
+          metrics.last_order_date = order.date_created;
+        }
+      }
+    });
+
+    // Calculate average order value and filter by min orders
+    const qualifiedCustomers = Array.from(customerMetrics.values())
+      .filter(customer => customer.orders_count >= minOrders)
+      .map(customer => {
+        customer.average_order_value = customer.orders_count > 0 
+          ? (customer.total_spent / customer.orders_count) 
+          : 0;
+        return customer;
+      });
+
+    // Sort by specified metric
+    qualifiedCustomers.sort((a, b) => {
+      switch (metric) {
+        case 'total_spent':
+          return b.total_spent - a.total_spent;
+        case 'orders_count':
+          return b.orders_count - a.orders_count;
+        case 'average_order_value':
+          return b.average_order_value - a.average_order_value;
+        default:
+          return b.total_spent - a.total_spent;
+      }
+    });
+
+    return qualifiedCustomers.slice(0, limit);
   }
 }
