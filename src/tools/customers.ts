@@ -10,6 +10,31 @@ export class CustomerTools {
     private logger: Logger
   ) {}
 
+  getToolDefinitions(): any[] {
+    return this.getTools().map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema
+    }));
+  }
+
+  async callTool(name: string, args: any): Promise<any> {
+    switch (name) {
+      case 'wc_get_customers':
+        return this.getCustomers(args);
+      case 'wc_get_customer':
+        return this.getCustomer(args);
+      case 'wc_create_customer':
+        return this.createCustomer(args);
+      case 'wc_update_customer':
+        return this.updateCustomer(args);
+      case 'wc_delete_customer':
+        return this.deleteCustomer(args);
+      default:
+        throw new Error(`Unknown customer tool: ${name}`);
+    }
+  }
+
   getTools(): Tool[] {
     return [
       {

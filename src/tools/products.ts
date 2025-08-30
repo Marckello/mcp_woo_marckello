@@ -10,6 +10,31 @@ export class ProductTools {
     private logger: Logger
   ) {}
 
+  getToolDefinitions(): any[] {
+    return this.getTools().map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema
+    }));
+  }
+
+  async callTool(name: string, args: any): Promise<any> {
+    switch (name) {
+      case 'wc_get_products':
+        return this.getProducts(args);
+      case 'wc_get_product':
+        return this.getProduct(args);
+      case 'wc_create_product':
+        return this.createProduct(args);
+      case 'wc_update_product':
+        return this.updateProduct(args);
+      case 'wc_delete_product':
+        return this.deleteProduct(args);
+      default:
+        throw new Error(`Unknown product tool: ${name}`);
+    }
+  }
+
   getTools(): Tool[] {
     return [
       {

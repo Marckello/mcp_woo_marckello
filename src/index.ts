@@ -374,6 +374,77 @@ class WooCommerceMCPServer {
       }
     });
 
+    // MCP JSON-RPC endpoint for HTTP Streamable
+    this.expressApp.post('/mcp', async (req, res) => {
+      try {
+        const { method, params, id } = req.body;
+        
+        this.logger.info('MCP request received', { method, params, id });
+        
+        let result;
+        
+        switch (method) {
+          case 'initialize':
+            result = {
+              protocolVersion: '2024-11-05',
+              capabilities: {
+                tools: {},
+                resources: {}
+              },
+              serverInfo: {
+                name: this.config.name,
+                version: this.config.version
+              }
+            };
+            break;
+            
+          case 'tools/list':
+            const allTools = [
+              ...this.productTools.getToolDefinitions(),
+              ...this.orderTools.getToolDefinitions(), 
+              ...this.customerTools.getToolDefinitions()
+            ];
+            result = { tools: allTools };
+            break;
+            
+          case 'tools/call':
+            const { name: toolName, arguments: toolArgs } = params;
+            
+            // Route to appropriate tool handler
+            if (toolName.startsWith('wc_product')) {
+              result = await this.productTools.callTool(toolName, toolArgs);
+            } else if (toolName.startsWith('wc_order')) {
+              result = await this.orderTools.callTool(toolName, toolArgs);
+            } else if (toolName.startsWith('wc_customer')) {
+              result = await this.customerTools.callTool(toolName, toolArgs);
+            } else {
+              throw new Error(`Unknown tool: ${toolName}`);
+            }
+            break;
+            
+          default:
+            throw new Error(`Unknown method: ${method}`);
+        }
+        
+        res.json({
+          jsonrpc: '2.0',
+          id,
+          result
+        });
+        
+      } catch (error) {
+        this.logger.error('MCP request error', { error });
+        res.status(500).json({
+          jsonrpc: '2.0',
+          id: req.body.id || null,
+          error: {
+            code: -32603,
+            message: error instanceof Error ? error.message : 'Internal error'
+          }
+        });
+      }
+    });
+
     // N8n webhook endpoint
     this.expressApp.post('/webhook/n8n', (req, res) => {
       this.logger.info('N8n webhook received', { 
@@ -393,7 +464,7 @@ class WooCommerceMCPServer {
     this.expressApp.use((req, res) => {
       res.status(404).json({
         error: 'Endpoint not found',
-        available_endpoints: ['/health', '/info', '/webhook/n8n']
+        available_endpoints: ['/health', '/info', '/mcp', '/webhook/n8n']
       });
     });
 
@@ -422,7 +493,7 @@ class WooCommerceMCPServer {
           this.logger.info(`HTTP server started`, {
             host: this.config.host,
             port: this.config.port,
-            endpoints: ['/health', '/info', '/webhook/n8n']
+            endpoints: ['/health', '/info', '/mcp', '/webhook/n8n']
           });
         });
       }

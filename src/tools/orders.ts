@@ -10,6 +10,33 @@ export class OrderTools {
     private logger: Logger
   ) {}
 
+  getToolDefinitions(): any[] {
+    return this.getTools().map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema
+    }));
+  }
+
+  async callTool(name: string, args: any): Promise<any> {
+    switch (name) {
+      case 'wc_get_orders':
+        return this.getOrders(args);
+      case 'wc_get_order':
+        return this.getOrder(args);
+      case 'wc_create_order':
+        return this.createOrder(args);
+      case 'wc_update_order':
+        return this.updateOrder(args);
+      case 'wc_delete_order':
+        return this.deleteOrder(args);
+      case 'wc_get_order_notes':
+        return this.getOrderNotes(args);
+      default:
+        throw new Error(`Unknown order tool: ${name}`);
+    }
+  }
+
   getTools(): Tool[] {
     return [
       {
