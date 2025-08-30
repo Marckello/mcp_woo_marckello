@@ -1,207 +1,174 @@
-# 🤖 MCP WooCommerce Server
+# MCP WooCommerce Server - Real Protocol Implementation
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
-[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
-[![EasyPanel](https://img.shields.io/badge/easypanel-compatible-purple.svg)](https://easypanel.io/)
+## 🚀 Project Overview
+**Complete MCP (Model Context Protocol) server for WooCommerce integration with native protocol support**
 
-Un servidor MCP (Model Context Protocol) completo para integración con WooCommerce, optimizado para despliegue en EasyPanel y conectividad perfecta con n8n workflows.
+- **Name**: mcp-woocommerce-server
+- **Goal**: True MCP protocol implementation for WooCommerce automation with n8n
+- **Features**: 37+ WooCommerce tools via native MCP protocol with bidirectional communication
 
-## 🚀 Características Principales
+## 🎯 URLs & Endpoints
 
-### ✅ API WooCommerce Completa
-- **🛍️ Productos**: CRUD completo con validación avanzada
-- **📦 Pedidos**: Gestión completa con notas y estados
-- **👥 Clientes**: Sistema completo de usuarios
-- **🏷️ Categorías & Tags**: Organización de productos
-- **💰 Cupones**: Sistema de descuentos
+### Production URLs
+- **GitHub**: https://github.com/Marckello/mcp_woo_marckello
+- **Demo Server**: https://3000-i0pmg1zszswkdqf58h7ot-6532622b.e2b.dev
 
-### 🤖 Integración AI & Automation
-- **37 herramientas MCP** para WooCommerce
-- **N8n webhooks** para workflows automáticos
-- **Claude/ChatGPT compatible** via MCP Protocol
-- **Eventos en tiempo real** para automatización
+### MCP Protocol Endpoints
+- **WebSocket MCP**: `ws://hostname:3000/mcp-ws` (for n8n MCP node)
+- **Server-Sent Events**: `GET /mcp-sse` (HTTP streaming) 
+- **HTTP JSON-RPC**: `POST /mcp` (fallback endpoint)
+- **Health Check**: `GET /health`
+- **Store Info**: `GET /info`
+- **N8n Webhook**: `POST /webhook/n8n`
 
-### 🐳 Production Ready
-- **Docker optimizado** para EasyPanel
-- **Health monitoring** automático
-- **Logs estructurados** con Winston
-- **Seguridad avanzada** con validación
+## 🏗️ MCP Protocol Architecture
 
-## ⚡ Quick Start
+### Native MCP Implementation
+- **MCPTransport** (`src/transport/mcp-transport.ts`): WebSocket & SSE transport layers
+- **MCPProtocolHandler** (`src/protocol/mcp-handler.ts`): JSON-RPC 2.0 message handling
+- **Session Management**: UUID-based session tracking with capabilities
+- **Bidirectional Communication**: Real-time MCP protocol compliance
 
-### 1. Clone & Install
+### MCP Protocol Features
+- **Protocol Version**: MCP 2024-11-05
+- **JSON-RPC 2.0**: Full compliance with MCP specification
+- **Multiple Transports**: WebSocket, SSE, HTTP support
+- **Tool Discovery**: Dynamic tool listing and execution
+- **Resource Management**: Store info and settings via MCP resources
+
+## 🔧 Data Architecture
+
+### WooCommerce Integration
+- **37+ MCP Tools**: Complete WooCommerce API coverage
+- **Product Tools**: Create, read, update, delete, batch operations
+- **Order Tools**: Order management, notes, status updates
+- **Customer Tools**: Customer CRUD operations and management
+- **Authentication**: OAuth 1.0a with consumer key/secret
+
+### Storage & Services
+- **WooCommerce REST API**: v1, v2, v3 support
+- **Session Storage**: In-memory session management
+- **Logging**: Winston-based structured logging
+- **Validation**: Joi schema validation for all inputs
+
+## 👨‍💻 User Guide
+
+### For n8n Users
+1. **Add MCP Node**: Use n8n's MCP integration node
+2. **WebSocket URL**: `ws://your-server:3000/mcp-ws`
+3. **Protocol**: Select "MCP 2024-11-05"
+4. **Tools Available**: 37+ WooCommerce automation tools
+5. **Authentication**: Configure WooCommerce credentials in server .env
+
+### For Direct API Usage
+```javascript
+// Initialize MCP connection
+POST /mcp
+{
+  "jsonrpc": "2.0",
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "clientInfo": {"name": "my-client", "version": "1.0.0"},
+    "capabilities": {"tools": {}}
+  },
+  "id": 1
+}
+
+// List available tools
+POST /mcp
+{
+  "jsonrpc": "2.0", 
+  "method": "tools/list",
+  "id": 2
+}
+
+// Execute WooCommerce tool
+POST /mcp
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call", 
+  "params": {
+    "name": "wc_get_products",
+    "arguments": {"per_page": 10}
+  },
+  "id": 3
+}
+```
+
+## 🚀 Deployment
+
+### Current Status
+- **Platform**: E2B Sandbox (Development)
+- **Status**: ✅ Active - MCP Protocol Real Implementation Complete
+- **Tech Stack**: Node.js + TypeScript + Hono + WebSocket + MCP SDK
+- **Process Manager**: PM2 with ecosystem.config.cjs
+
+### EasyPanel Deployment
+1. **Repository**: Use GitHub repo `mcp_woo_marckello`
+2. **Docker**: Multi-stage build with production optimization
+3. **Environment**: Copy `.env.easypanel` template
+4. **Port**: 3000 (HTTP + WebSocket)
+5. **Health**: `/health` endpoint for monitoring
+
+### Local Development
 ```bash
-git clone https://github.com/YOUR-USERNAME/mcp-woocommerce-server.git
-cd mcp-woocommerce-server
+# Install dependencies
 npm install
-```
 
-### 2. Configure
-```bash
-cp .env.example .env
-# Edit .env with your WooCommerce credentials
-```
-
-### 3. Run
-```bash
+# Build TypeScript
 npm run build
-npm start
+
+# Start with PM2
+pm2 start ecosystem.config.cjs
+
+# Test MCP protocol
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "method": "initialize", "id": 1}'
 ```
 
-### 4. Deploy to EasyPanel
-```bash
-# Follow the detailed guide in EASYPANEL-SETUP.md
-./scripts/deploy-easypanel.sh
-```
+## 🔑 Environment Variables
 
-## 🔧 Configuration
-
-### Required Environment Variables
 ```bash
+# Server Configuration
+PORT=3000
+HOST=0.0.0.0
+NODE_ENV=production
+
+# WooCommerce API
 WOOCOMMERCE_SITE_URL=https://your-store.com
-WOOCOMMERCE_CONSUMER_KEY=ck_your_key_here
-WOOCOMMERCE_CONSUMER_SECRET=cs_your_secret_here
+WOOCOMMERCE_CONSUMER_KEY=ck_your_consumer_key
+WOOCOMMERCE_CONSUMER_SECRET=cs_your_consumer_secret
+WOOCOMMERCE_API_VERSION=3
+
+# Security & Logging  
+ENABLE_CORS=true
+LOG_LEVEL=info
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX=100
 ```
 
-### Optional N8n Integration
-```bash
-N8N_ENABLED=true
-N8N_WEBHOOK_URL=https://your-n8n.com/webhook/woocommerce
-N8N_WEBHOOK_SECRET=your-webhook-secret
+## 🎯 Implementation Status
+
+### ✅ Completed Features
+- **Native MCP Protocol**: Complete JSON-RPC 2.0 implementation
+- **Multiple Transports**: WebSocket, SSE, HTTP support
+- **37+ WooCommerce Tools**: Full API coverage via MCP
+- **Session Management**: UUID-based session tracking  
+- **Production Ready**: PM2, logging, error handling
+- **GitHub Integration**: Source control with deployment ready
+- **Docker Support**: Multi-stage production builds
+
+### 📋 Ready for Next Steps
+1. **EasyPanel Deployment**: Repository ready for container deployment
+2. **N8n Integration**: Native MCP WebSocket connection support
+3. **Real Credentials**: Update .env with actual WooCommerce API keys
+4. **Production Scaling**: PM2 cluster mode and load balancing
+
+### 🔄 Integration Flow
+```
+n8n MCP Node → WebSocket → MCP Transport → Protocol Handler → WooCommerce Tools → API Response → MCP Response → n8n
 ```
 
-## 📖 Documentation
-
-- **[EasyPanel Setup Guide](EASYPANEL-SETUP.md)** - Visual step-by-step deployment
-- **[Complete Deployment Guide](DEPLOYMENT.md)** - Technical documentation  
-- **[API Documentation](docs/API.md)** - MCP tools reference
-
-## 🛠️ Available MCP Tools
-
-### Products (6 tools)
-- `wc_get_products` - List products with advanced filters
-- `wc_get_product` - Get specific product details
-- `wc_create_product` - Create new products
-- `wc_update_product` - Update existing products
-- `wc_delete_product` - Delete products
-- `wc_batch_products` - Bulk operations
-
-### Orders (7 tools)  
-- `wc_get_orders` - List orders with filters
-- `wc_get_order` - Get specific order
-- `wc_create_order` - Create new orders
-- `wc_update_order` - Update orders
-- `wc_delete_order` - Delete orders
-- `wc_get_order_notes` - Get order notes
-- `wc_add_order_note` - Add notes to orders
-
-### Customers (7 tools)
-- `wc_get_customers` - List customers
-- `wc_get_customer` - Get specific customer  
-- `wc_create_customer` - Create new customers
-- `wc_update_customer` - Update customer data
-- `wc_delete_customer` - Delete customers
-- `wc_batch_customers` - Bulk customer operations
-- `wc_get_customer_orders` - Get customer's orders
-
-## 🌐 API Endpoints
-
-After deployment:
-```
-Health Check: https://your-app.host/health
-Store Info:   https://your-app.host/info
-N8n Webhook:  https://your-app.host/webhook/n8n
-```
-
-## 🤝 N8n Workflows
-
-Perfect for automating:
-- **Customer onboarding** with welcome emails + coupons
-- **Inventory management** with low stock alerts
-- **Order processing** with automatic fulfillment
-- **Marketing campaigns** based on customer behavior
-- **Sales analytics** with automated reporting
-
-## 🔒 Security Features
-
-- **Input validation** with Joi schemas
-- **Data sanitization** for all inputs
-- **Rate limiting** configurable
-- **Secure headers** with Helmet
-- **Structured logging** without sensitive data
-
-## 📊 Monitoring & Health
-
-- **Automatic health checks** every 30 seconds
-- **Performance metrics** built-in
-- **Error tracking** with detailed logs
-- **Uptime monitoring** compatible
-
-## 🚀 Deployment Platforms
-
-### EasyPanel (Recommended)
-```bash
-# Use the automated script
-./scripts/deploy-easypanel.sh
-```
-
-### Docker Compose
-```bash
-docker-compose up -d
-```
-
-### Manual Docker
-```bash
-docker build -t mcp-woocommerce .
-docker run -p 3000:3000 mcp-woocommerce
-```
-
-## 🏗️ Architecture
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   AI Assistant  │───▶│  MCP Server      │───▶│  WooCommerce    │
-│ (Claude/ChatGPT)│    │  (This Project)  │    │     Store       │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-                              │
-                              ▼
-                       ┌──────────────────┐
-                       │   N8n Workflows  │
-                       │   (Automation)   │
-                       └──────────────────┘
-```
-
-## 🛡️ Requirements
-
-- **Node.js** 18+
-- **WooCommerce** with REST API enabled
-- **Docker** (for containerized deployment)
-- **EasyPanel** account (for easy deployment)
-
-## 📝 License
-
-MIT License - see [LICENSE](LICENSE) file
-
-## 👨‍💻 Author
-
-**Marco - Marketing Digital Expert**
-- 🎯 Specialized in e-commerce automation
-- 🤖 AI-powered marketing workflows
-- 🚀 Advanced WooCommerce integrations
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
-
-## ⭐ Show Your Support
-
-If this project helps your e-commerce automation, please ⭐ star this repository!
-
----
-
-**Ready to revolutionize your WooCommerce store with AI? Let's automate! 🚀**
+**Last Updated**: August 30, 2025 - MCP Protocol Real Implementation Complete
