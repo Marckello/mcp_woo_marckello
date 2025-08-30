@@ -16,6 +16,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import { createServer } from 'http';
 
 import { WooCommerceService } from './services/woocommerce.js';
 import { Logger } from './utils/logger.js';
@@ -24,6 +25,8 @@ import { MCPServerConfig } from './types/mcp.js';
 import { ProductTools } from './tools/products.js';
 import { OrderTools } from './tools/orders.js';
 import { CustomerTools } from './tools/customers.js';
+import { MCPTransport } from './transport/mcp-transport.js';
+import { MCPProtocolHandler } from './protocol/mcp-handler.js';
 
 // Load environment variables
 dotenv.config();
@@ -37,6 +40,9 @@ class WooCommerceMCPServer {
   private customerTools!: CustomerTools;
   private config: MCPServerConfig;
   private expressApp?: express.Application;
+  private httpServer?: any;
+  private mcpTransport?: MCPTransport;
+  private mcpProtocol?: MCPProtocolHandler;
 
   constructor() {
     this.logger = Logger.getInstance();
@@ -102,6 +108,16 @@ class WooCommerceMCPServer {
       this.productTools = new ProductTools(this.wooCommerce, this.logger);
       this.orderTools = new OrderTools(this.wooCommerce, this.logger);
       this.customerTools = new CustomerTools(this.wooCommerce, this.logger);
+      
+      // Initialize MCP Protocol components
+      this.mcpProtocol = new MCPProtocolHandler(
+        this.productTools,
+        this.orderTools, 
+        this.customerTools,
+        this.logger
+      );
+      
+      this.mcpTransport = new MCPTransport(this.mcpProtocol, this.logger);
 
       this.logger.info('Services initialized successfully', {
         siteUrl: this.config.woocommerce.siteUrl,
@@ -374,72 +390,52 @@ class WooCommerceMCPServer {
       }
     });
 
-    // MCP JSON-RPC endpoint for HTTP Streamable
+    // MCP Server-Sent Events endpoint for streaming
+    this.expressApp.get('/mcp-sse', (req, res) => {
+      if (!this.mcpTransport) {
+        return res.status(500).json({ error: 'MCP Transport not initialized' });
+      }
+      
+      const sessionId = this.mcpTransport.handleSSEConnection(req, res);
+      this.logger.info('SSE connection established', { sessionId });
+      return sessionId;
+    });
+    
+    // MCP JSON-RPC HTTP endpoint (fallback for simple requests)
     this.expressApp.post('/mcp', async (req, res) => {
       try {
         const { method, params, id } = req.body;
         
-        this.logger.info('MCP request received', { method, params, id });
+        this.logger.info('MCP HTTP request received', { method, params, id });
         
-        let result;
-        
-        switch (method) {
-          case 'initialize':
-            result = {
-              protocolVersion: '2024-11-05',
-              capabilities: {
-                tools: {},
-                resources: {}
-              },
-              serverInfo: {
-                name: this.config.name,
-                version: this.config.version
-              }
-            };
-            break;
-            
-          case 'tools/list':
-            const allTools = [
-              ...this.productTools.getToolDefinitions(),
-              ...this.orderTools.getToolDefinitions(), 
-              ...this.customerTools.getToolDefinitions()
-            ];
-            result = { tools: allTools };
-            break;
-            
-          case 'tools/call':
-            const { name: toolName, arguments: toolArgs } = params;
-            
-            // Route to appropriate tool handler
-            if (toolName.startsWith('wc_get_products') || toolName.startsWith('wc_create_product') || 
-                toolName.startsWith('wc_update_product') || toolName.startsWith('wc_delete_product') || 
-                toolName.startsWith('wc_batch_products')) {
-              result = await this.productTools.callTool(toolName, toolArgs);
-            } else if (toolName.startsWith('wc_get_orders') || toolName.startsWith('wc_create_order') || 
-                       toolName.startsWith('wc_update_order') || toolName.startsWith('wc_delete_order') || 
-                       toolName.startsWith('wc_get_order_notes') || toolName.startsWith('wc_add_order')) {
-              result = await this.orderTools.callTool(toolName, toolArgs);
-            } else if (toolName.startsWith('wc_get_customers') || toolName.startsWith('wc_create_customer') || 
-                       toolName.startsWith('wc_update_customer') || toolName.startsWith('wc_delete_customer') || 
-                       toolName.startsWith('wc_batch_customers') || toolName.startsWith('wc_get_customer')) {
-              result = await this.customerTools.callTool(toolName, toolArgs);
-            } else {
-              throw new Error(`Unknown tool: ${toolName}`);
-            }
-            break;
-            
-          default:
-            throw new Error(`Unknown method: ${method}`);
+        if (!this.mcpProtocol) {
+          throw new Error('MCP Protocol handler not initialized');
         }
         
-        res.json({
+        // Create a simple HTTP response handler
+        const responseHandler = (response: any) => {
+          if (response) {
+            res.json({
+              jsonrpc: '2.0',
+              id,
+              result: response.result || response,
+              error: response.error
+            });
+          }
+        };
+        
+        // Handle the message through MCP Protocol
+        await this.mcpProtocol.handleMessage('http-session', {
           jsonrpc: '2.0',
-          id,
-          result
-        });
+          method,
+          params,
+          id
+        }, responseHandler);
+        
+        return; // Ensure function returns
         
       } catch (error) {
-        this.logger.error('MCP request error', { error });
+        this.logger.error('MCP HTTP request error', { error });
         res.status(500).json({
           jsonrpc: '2.0',
           id: req.body.id || null,
@@ -470,7 +466,14 @@ class WooCommerceMCPServer {
     this.expressApp.use((req, res) => {
       res.status(404).json({
         error: 'Endpoint not found',
-        available_endpoints: ['/health', '/info', '/mcp', '/webhook/n8n']
+        available_endpoints: {
+          'GET /health': 'Server health check',
+          'GET /info': 'Store information',
+          'GET /mcp-sse': 'MCP Server-Sent Events streaming',
+          'POST /mcp': 'MCP HTTP JSON-RPC endpoint',
+          'WebSocket /mcp-ws': 'Native MCP WebSocket protocol',
+          'POST /webhook/n8n': 'N8n webhook endpoint'
+        }
       });
     });
 
@@ -493,13 +496,29 @@ class WooCommerceMCPServer {
       // Setup Express server for HTTP endpoints (health checks, webhooks)
       this.setupExpressServer();
 
-      // Start HTTP server if configured
+      // Start HTTP server with WebSocket support if configured
       if (this.expressApp && this.config.port && this.config.host) {
-        this.expressApp.listen(this.config.port, this.config.host, () => {
-          this.logger.info(`HTTP server started`, {
+        // Create HTTP server instance for WebSocket integration
+        this.httpServer = createServer(this.expressApp);
+        
+        // Initialize WebSocket server for native MCP protocol
+        if (this.mcpTransport) {
+          this.mcpTransport.initializeWebSocketServer(this.httpServer);
+        }
+        
+        this.httpServer.listen(this.config.port, this.config.host, () => {
+          this.logger.info(`🚀 MCP WooCommerce Server started`, {
             host: this.config.host,
             port: this.config.port,
-            endpoints: ['/health', '/info', '/mcp', '/webhook/n8n']
+            endpoints: {
+              'Health Check': `http://${this.config.host}:${this.config.port}/health`,
+              'Store Info': `http://${this.config.host}:${this.config.port}/info`,
+              'MCP WebSocket': `ws://${this.config.host}:${this.config.port}/mcp-ws`,
+              'MCP Server-Sent Events': `http://${this.config.host}:${this.config.port}/mcp-sse`,
+              'MCP HTTP': `http://${this.config.host}:${this.config.port}/mcp`,
+              'N8n Webhook': `http://${this.config.host}:${this.config.port}/webhook/n8n`
+            },
+            protocol: 'Native MCP Protocol with WebSocket & SSE support'
           });
         });
       }
@@ -522,8 +541,20 @@ class WooCommerceMCPServer {
 
   async stop(): Promise<void> {
     try {
+      // Close HTTP server
+      if (this.httpServer) {
+        this.httpServer.close();
+      }
+      
+      // Close MCP Transport
+      if (this.mcpTransport) {
+        await this.mcpTransport.close();
+      }
+      
+      // Close MCP SDK server
       await this.server.close();
-      this.logger.info('MCP WooCommerce Server stopped');
+      
+      this.logger.info('MCP WooCommerce Server stopped gracefully');
     } catch (error) {
       this.logger.error('Error stopping MCP server', { error });
     }
