@@ -26,6 +26,7 @@ import { ProductTools } from './tools/products.js';
 import { OrderTools } from './tools/orders.js';
 import { CustomerTools } from './tools/customers.js';
 import { AnalyticsTools } from './tools/analytics.js';
+import { CouponTools } from './tools/coupons.js';
 import { MCPTransport } from './transport/mcp-transport.js';
 import { MCPProtocolHandler } from './protocol/mcp-handler.js';
 
@@ -40,6 +41,7 @@ class WooCommerceMCPServer {
   private orderTools!: OrderTools;
   private customerTools!: CustomerTools;
   private analyticsTools!: AnalyticsTools;
+  private couponTools!: CouponTools;
   private config: MCPServerConfig;
   private expressApp?: express.Application;
   private httpServer?: any;
@@ -111,6 +113,7 @@ class WooCommerceMCPServer {
       this.orderTools = new OrderTools(this.wooCommerce, this.logger);
       this.customerTools = new CustomerTools(this.wooCommerce, this.logger);
       this.analyticsTools = new AnalyticsTools(this.wooCommerce, this.logger);
+      this.couponTools = new CouponTools(this.wooCommerce, this.logger);
       
       // Initialize MCP Protocol components
       this.mcpProtocol = new MCPProtocolHandler(
@@ -118,6 +121,7 @@ class WooCommerceMCPServer {
         this.orderTools, 
         this.customerTools,
         this.analyticsTools,
+        this.couponTools,
         this.logger
       );
       

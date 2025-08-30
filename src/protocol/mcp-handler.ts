@@ -3,6 +3,7 @@ import { ProductTools } from '../tools/products.js';
 import { OrderTools } from '../tools/orders.js';
 import { CustomerTools } from '../tools/customers.js';
 import { AnalyticsTools } from '../tools/analytics.js';
+import { CouponTools } from '../tools/coupons.js';
 import { Logger } from '../utils/logger.js';
 
 export class MCPProtocolHandler {
@@ -10,6 +11,7 @@ export class MCPProtocolHandler {
   private orderTools: OrderTools;
   private customerTools: CustomerTools;
   private analyticsTools: AnalyticsTools;
+  private couponTools: CouponTools;
   private logger: Logger;
 
   constructor(
@@ -17,12 +19,14 @@ export class MCPProtocolHandler {
     orderTools: OrderTools,
     customerTools: CustomerTools,
     analyticsTools: AnalyticsTools,
+    couponTools: CouponTools,
     logger: Logger
   ) {
     this.productTools = productTools;
     this.orderTools = orderTools;
     this.customerTools = customerTools;
     this.analyticsTools = analyticsTools;
+    this.couponTools = couponTools;
     this.logger = logger;
   }
 
@@ -144,7 +148,8 @@ export class MCPProtocolHandler {
       ...this.productTools.getToolDefinitions(),
       ...this.orderTools.getToolDefinitions(),
       ...this.customerTools.getToolDefinitions(),
-      ...this.analyticsTools.getToolDefinitions()
+      ...this.analyticsTools.getToolDefinitions(),
+      ...this.couponTools.getToolDefinitions()
     ];
 
     this.logger.info(`Returning ${allTools.length} tools`, { sessionId });
@@ -180,11 +185,15 @@ export class MCPProtocolHandler {
                  name?.startsWith('wc_batch_customer') || name?.startsWith('wc_get_top_customers') ||
                  name?.startsWith('wc_get_promotions')) {
         result = await this.customerTools.callTool(name, args);
+      } else if (name?.startsWith('wc_get_coupon') || name?.startsWith('wc_create_coupon') || 
+                 name?.startsWith('wc_update_coupon') || name?.startsWith('wc_delete_coupon') ||
+                 name?.startsWith('wc_get_top_coupons')) {
+        result = await this.couponTools.callTool(name, args);
       } else if (name?.startsWith('wc_get_sales') || name?.startsWith('wc_get_daily') || 
                  name?.startsWith('wc_get_monthly') || name?.startsWith('wc_get_yearly') || 
                  name?.startsWith('wc_get_top_sellers') || name?.startsWith('wc_get_revenue') || 
-                 name?.startsWith('wc_get_coupon') || name?.startsWith('wc_get_tax') || 
-                 name?.startsWith('wc_get_refund') || name?.startsWith('wc_get_product_sales')) {
+                 name?.startsWith('wc_get_tax') || name?.startsWith('wc_get_refund') || 
+                 name?.startsWith('wc_get_product_sales')) {
         result = await this.analyticsTools.callTool(name, args);
       } else {
         throw new Error(`Unknown tool: ${name}`);

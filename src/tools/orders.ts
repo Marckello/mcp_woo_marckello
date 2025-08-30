@@ -32,6 +32,8 @@ export class OrderTools {
         return this.deleteOrder(args);
       case 'wc_get_order_notes':
         return this.getOrderNotes(args);
+      case 'wc_get_orders_by_email':
+        return this.getOrdersByEmail(args);
       default:
         throw new Error(`Unknown order tool: ${name}`);
     }
@@ -252,6 +254,33 @@ export class OrderTools {
         }
       },
       {
+        name: 'wc_get_orders_by_email',
+        description: 'Find orders by customer email address - useful for customer support and order status lookup',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            email: { 
+              type: 'string', 
+              format: 'email',
+              description: 'Customer email address to search for'
+            },
+            status: { 
+              type: 'string', 
+              enum: ['pending', 'processing', 'on-hold', 'completed', 'cancelled', 'refunded', 'failed', 'trash'], 
+              description: 'Filter by order status (optional)' 
+            },
+            limit: { 
+              type: 'integer', 
+              minimum: 1, 
+              maximum: 50,
+              description: 'Maximum number of orders to return (default: 10)'
+            }
+          },
+          required: ['email'],
+          additionalProperties: false
+        }
+      },
+      {
         name: 'wc_add_order_note',
         description: 'Add a note to an order',
         inputSchema: {
@@ -287,6 +316,8 @@ export class OrderTools {
           return await this.getOrderNotes(params);
         case 'wc_add_order_note':
           return await this.addOrderNote(params);
+        case 'wc_get_orders_by_email':
+          return await this.getOrdersByEmail(params);
         default:
           throw new Error(`Unknown order tool: ${name}`);
       }
@@ -458,5 +489,107 @@ export class OrderTools {
         }, null, 2)
       }]
     };
+  }
+
+  private async getOrdersByEmail(params: MCPToolParams): Promise<MCPToolResult> {
+    const { email, status, limit = 10 } = params;
+    
+    if (!email || typeof email !== 'string') {
+      throw new Error('Email address is required and must be a valid string');
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new Error('Invalid email format');
+    }
+
+    try {
+      // Use the search parameter to find orders by email
+      const searchParams = {
+        search: email,
+        per_page: limit,
+        ...(status && { status })
+      };
+
+      const orders = await this.wooCommerce.getOrders(searchParams);
+      
+      // Filter to ensure we only get orders that match the exact email
+      const filteredOrders = orders.filter(order => {
+        return order.billing?.email?.toLowerCase() === email.toLowerCase();
+      });
+
+      // Create a detailed response with order status and key information
+      const orderSummaries = filteredOrders.map(order => ({
+        id: order.id,
+        number: order.number,
+        status: order.status,
+        total: order.total,
+        currency: order.currency,
+        date_created: order.date_created,
+        customer_email: order.billing?.email,
+        customer_name: `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim(),
+        line_items: order.line_items?.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          total: item.total
+        })) || [],
+        tracking_number: order.meta_data?.find(meta => 
+          meta.key === 'tracking_number' || meta.key === '_tracking_number'
+        )?.value || null,
+        payment_method_title: order.payment_method_title,
+        shipping_total: order.shipping_total
+      }));
+
+      if (filteredOrders.length === 0) {
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              data: [],
+              count: 0,
+              message: `No orders found for email address: ${email}`,
+              email_searched: email
+            }, null, 2)
+          }]
+        };
+      }
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            data: orderSummaries,
+            count: filteredOrders.length,
+            message: `Found ${filteredOrders.length} order(s) for ${email}`,
+            email_searched: email,
+            search_criteria: {
+              email,
+              ...(status && { status_filter: status }),
+              limit
+            }
+          }, null, 2)
+        }]
+      };
+    } catch (error) {
+      this.logger.error('Error searching orders by email', { 
+        error: error instanceof Error ? error.message : error, 
+        email 
+      });
+      
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error occurred',
+            message: `Failed to search orders for email: ${email}`
+          }, null, 2)
+        }],
+        isError: true
+      };
+    }
   }
 }
