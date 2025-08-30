@@ -1,3 +1,60 @@
+#!/bin/bash
+
+# Script para crear repositorio GitHub del MCP WooCommerce Server
+# Marco - Marketing Digital Expert
+
+set -e
+
+# Colores
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+echo -e "${BLUE}"
+echo "🚀 Creando Repositorio GitHub - MCP WooCommerce Server"
+echo "===================================================="
+echo -e "${NC}"
+
+print_success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}❌ $1${NC}"
+}
+
+print_info() {
+    echo -e "${BLUE}ℹ️  $1${NC}"
+}
+
+# Verificar que estamos en el directorio correcto
+if [ ! -f "package.json" ]; then
+    print_error "Este script debe ejecutarse desde el directorio raíz del proyecto"
+    exit 1
+fi
+
+print_info "Verificando configuración GitHub..."
+
+# Configurar el repositorio
+REPO_NAME="mcp-woocommerce-server"
+REPO_DESCRIPTION="🤖 MCP Server for WooCommerce integration with n8n support - Advanced e-commerce automation for AI workflows"
+
+print_info "Configuración del repositorio:"
+echo "   📦 Nombre: $REPO_NAME"
+echo "   📝 Descripción: $REPO_DESCRIPTION"
+echo ""
+
+# Preparar archivos finales
+print_info "Preparando archivos para GitHub..."
+
+# Actualizar README con información de GitHub
+cat > README-GITHUB.md << 'EOF'
 # 🤖 MCP WooCommerce Server
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -205,3 +262,68 @@ If this project helps your e-commerce automation, please ⭐ star this repositor
 ---
 
 **Ready to revolutionize your WooCommerce store with AI? Let's automate! 🚀**
+EOF
+
+# Mover el README actualizado
+mv README-GITHUB.md README.md
+
+print_success "README actualizado para GitHub"
+
+# Crear archivo de licencia
+cat > LICENSE << 'EOF'
+MIT License
+
+Copyright (c) 2024 Marco - Marketing Digital Expert
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+EOF
+
+print_success "Licencia MIT creada"
+
+# Commit de archivos finales
+git add .
+git commit -m "📝 Prepare for GitHub: Update README and add LICENSE
+
+✨ Changes:
+- 📖 GitHub-optimized README with badges and detailed docs
+- 📄 MIT License added
+- 🚀 Ready for public repository
+- 🎯 Professional documentation structure"
+
+print_success "Archivos finales commiteados"
+
+print_info "📁 ESTRUCTURA DEL REPOSITORIO:"
+echo "   ├── 📖 README.md (GitHub optimizado)"
+echo "   ├── 📄 LICENSE (MIT)"
+echo "   ├── 🐳 Dockerfile (Producción)"
+echo "   ├── ⚙️ docker-compose.yml"
+echo "   ├── 📋 EASYPANEL-SETUP.md (Guía visual)"
+echo "   ├── 📚 DEPLOYMENT.md (Documentación completa)"
+echo "   ├── 💼 package.json"
+echo "   ├── 🔧 src/ (Código fuente TypeScript)"
+echo "   ├── 📜 scripts/ (Scripts de automatización)"
+echo "   └── 🧪 tests/ (Tests básicos)"
+
+echo ""
+print_success "🎉 REPOSITORIO LISTO PARA GITHUB"
+echo ""
+print_info "Siguiente paso: Configurar GitHub authentication en el sandbox"
+print_info "Después ejecutar: setup_github_environment && crear repositorio"
+echo ""
+print_warning "⚠️  IMPORTANTE: Configura GitHub OAuth primero en el tab #github"
