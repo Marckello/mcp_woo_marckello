@@ -5,7 +5,7 @@
 
 - **Name**: mcp-woocommerce-server
 - **Goal**: True MCP protocol implementation for WooCommerce automation with n8n
-- **Features**: 37+ WooCommerce tools via native MCP protocol with smart timezone handling and n8n integration
+- **Features**: 37+ WooCommerce tools via native MCP protocol with Mexican market support (MXN currency) and real API integration
 
 ## 🎯 URLs & Endpoints
 
@@ -46,6 +46,8 @@
 - **Order Tools**: Order management, notes, status updates  
 - **Customer Tools**: Customer CRUD operations and management
 - **Analytics Tools**: 12 comprehensive sales analytics with smart date detection
+- **Mexican Market**: Native MXN (Pesos Mexicanos) currency support
+- **Real API Integration**: Direct connection to live WooCommerce stores
 - **Authentication**: OAuth 1.0a with consumer key/secret
 - **Timezone Aware**: All date queries use Mexico City timezone (UTC-6)
 
@@ -167,10 +169,10 @@ PORT=3000
 HOST=0.0.0.0
 NODE_ENV=production
 
-# WooCommerce API
-WOOCOMMERCE_SITE_URL=https://your-store.com
-WOOCOMMERCE_CONSUMER_KEY=ck_your_consumer_key
-WOOCOMMERCE_CONSUMER_SECRET=cs_your_consumer_secret
+# WooCommerce API (Real Store Configuration)
+WOOCOMMERCE_SITE_URL=https://www.adaptohealmx.com
+WOOCOMMERCE_CONSUMER_KEY=ck_34d17724245f34dbbcd7b0f05b943c89755eeb
+WOOCOMMERCE_CONSUMER_SECRET=cs_118d871a343de8dbcab864c85e81b40453f05458
 WOOCOMMERCE_API_VERSION=3
 
 # Security & Logging  
@@ -180,6 +182,23 @@ RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX=100
 ```
 
+## 🏪 WooCommerce API Setup
+
+### Required API Permissions
+For real WooCommerce integration, ensure your API key has proper permissions:
+
+1. **WordPress Admin** → **WooCommerce** → **Settings** → **Advanced** → **REST API**
+2. **Create API Key** or **Edit existing key**
+3. **Permissions**: Set to **"Read/Write"** or minimum **"Read"** for analytics
+4. **User**: Select admin user with WooCommerce access
+5. **Generate/Update** and copy credentials to `.env` file
+
+### Currency Configuration
+- **Default Currency**: Mexican Pesos (MXN) 
+- **Market Focus**: Mexican e-commerce market
+- **Realistic Values**: All demo data scaled for Mexican market
+- **Real Integration**: Connects to live WooCommerce for accurate MXN data
+
 ## 🎯 Implementation Status
 
 ### ✅ Completed Features
@@ -187,6 +206,8 @@ RATE_LIMIT_MAX=100
 - **Multiple Transports**: WebSocket, SSE, HTTP support
 - **37+ WooCommerce Tools**: Full API coverage via MCP
 - **Smart Analytics**: 12 analytics tools with intelligent date detection
+- **Mexican Market Support**: MXN currency, realistic pricing, Mexico timezone
+- **Real API Integration**: Direct connection to live WooCommerce stores
 - **Mexico Timezone**: Native UTC-6 support with n8n {{ $now }} integration
 - **Session Management**: UUID-based session tracking  
 - **Production Ready**: PM2, logging, error handling
@@ -204,4 +225,4 @@ RATE_LIMIT_MAX=100
 n8n MCP Node → WebSocket → MCP Transport → Protocol Handler → WooCommerce Tools → API Response → MCP Response → n8n
 ```
 
-**Last Updated**: August 30, 2025 - v1.1.0 Smart Timezone & Date Detection Complete
+**Last Updated**: August 30, 2025 - v1.2.0 Mexican Market (MXN) & Real API Integration Complete

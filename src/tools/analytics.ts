@@ -553,13 +553,13 @@ export class AnalyticsTools {
                 items_per_order: metrics.itemsPerOrder
               }
             },
-            currency: currency || 'USD',
+            currency: currency || 'MXN',
             timezone_info: {
               timezone: 'America/Mexico_City (UTC-6)',
               context_date: context_date,
               calculated_range: `${dateRange.start.split('T')[0]} to ${dateRange.end.split('T')[0]}`
             },
-            message: `📊 LIVE: Sales report for ${period}: ${metrics.totalOrders} orders, ${currency || 'USD'} ${metrics.totalSales} revenue (Mexico timezone)`
+            message: `📊 LIVE: Sales report for ${period}: ${metrics.totalOrders} orders, ${currency || 'MXN'} ${metrics.totalSales} revenue (Mexico timezone)`
           }, null, 2)
         }]
       };
@@ -1214,11 +1214,13 @@ export class AnalyticsTools {
     const siteUrl = process.env.WOOCOMMERCE_SITE_URL || '';
     const consumerKey = process.env.WOOCOMMERCE_CONSUMER_KEY || '';
     
-    // Check if using demo/test credentials
-    return siteUrl.includes('adaptohealmx.com') || 
-           consumerKey.includes('test') || 
+    // Check if using demo/test credentials (but allow adaptohealmx.com as real store)
+    return consumerKey.includes('test') || 
            consumerKey.includes('demo') ||
-           consumerKey === 'ck_test_demo_key';
+           consumerKey === 'ck_test_demo_key' ||
+           consumerKey === '' || 
+           siteUrl.includes('example.com') ||
+           siteUrl.includes('demo.com');
   }
 
   // Date and timezone utilities for Mexico City (UTC-6)
@@ -1357,12 +1359,13 @@ export class AnalyticsTools {
   }
 
   private getMockSalesReport(period: string, currency?: string): MCPToolResult {
+    // Mock data in Mexican Pesos (MXN) - more realistic for Mexican market
     const mockData = {
-      'today': { sales: '1,245.50', orders: 8, customers: 6 },
-      'week': { sales: '8,750.25', orders: 45, customers: 32 },
-      'month': { sales: '34,890.75', orders: 187, customers: 134 },
-      'quarter': { sales: '98,560.20', orders: 534, customers: 387 },
-      'year': { sales: '387,920.80', orders: 2145, customers: 1567 }
+      'today': { sales: '24,891.00', orders: 8, customers: 6 },
+      'week': { sales: '175,005.00', orders: 45, customers: 32 },
+      'month': { sales: '697,815.00', orders: 187, customers: 134 },
+      'quarter': { sales: '1,971,204.00', orders: 534, customers: 387 },
+      'year': { sales: '7,758,416.00', orders: 2145, customers: 1567 }
     };
 
     const data = mockData[period as keyof typeof mockData] || mockData.month;
@@ -1390,8 +1393,8 @@ export class AnalyticsTools {
               items_per_order: '2.3'
             }
           },
-          currency: currency || 'USD',
-          message: `📊 DEMO: Sales report for ${period}: ${data.orders} orders, ${currency || 'USD'} ${data.sales} revenue`
+          currency: currency || 'MXN',
+          message: `📊 DEMO: Sales report for ${period}: ${data.orders} orders, $${data.sales} ${currency || 'MXN'} revenue`
         }, null, 2)
       }]
     };
@@ -1412,9 +1415,9 @@ export class AnalyticsTools {
         const singleDay = {
           date: start_date,
           orders: 24,
-          revenue: 2847.65,
+          revenue: 56953.00,
           items_sold: 58,
-          avg_order_value: 118.65
+          avg_order_value: 2373.04
         };
         
         return {
@@ -1455,20 +1458,20 @@ export class AnalyticsTools {
     while (currentDate <= endDate) {
       const dateStr = currentDate.toISOString().split('T')[0];
       
-      // Generate realistic sales data with some variation
-      const baseRevenue = 800 + Math.random() * 600; // 800-1400 base
+      // Generate realistic sales data with some variation in MXN
+      const baseRevenue = (800 + Math.random() * 600) * 20; // 16000-28000 MXN base
       const weekendMultiplier = currentDate.getDay() === 0 || currentDate.getDay() === 6 ? 0.7 : 1.0; // Lower on weekends
       const revenue = Math.round(baseRevenue * weekendMultiplier * 100) / 100;
-      const orders = Math.floor(revenue / 85) + Math.floor(Math.random() * 3); // ~85 avg order value
+      const orders = Math.floor(revenue / 1700) + Math.floor(Math.random() * 3); // ~1700 MXN avg order value
       
       // Special case for August 28, 2023
       if (dateStr === '2023-08-28') {
         dailySales.push({
           date: dateStr,
           orders: 24,
-          revenue: 2847.65,
+          revenue: 56953.00,
           items_sold: 58,
-          avg_order_value: 118.65
+          avg_order_value: 2373.04
         });
       } else {
         dailySales.push({
