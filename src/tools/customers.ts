@@ -10,21 +10,7 @@ export class CustomerTools {
     private logger: Logger
   ) {}
 
-  private isDemoMode(): boolean {
-    // Check if we're in demo mode based on environment variables
-    const consumerKey = process.env.WOOCOMMERCE_CONSUMER_KEY || '';
-    const siteUrl = process.env.WOOCOMMERCE_SITE_URL || '';
-    
-    return (
-      consumerKey.includes('demo') || 
-      consumerKey.includes('test') || 
-      consumerKey.includes('your_') ||
-      siteUrl.includes('demo') ||
-      siteUrl.includes('your-store') ||
-      !consumerKey || 
-      !siteUrl
-    );
-  }
+
 
   getToolDefinitions(): any[] {
     return this.getTools().map(tool => ({
@@ -613,38 +599,15 @@ export class CustomerTools {
 
     this.logger.info('🏆 Getting top customers', { metric, limit, period, min_orders });
 
-    // Try real WooCommerce API first, fallback to demo data
-    if (!this.isDemoMode()) {
-      try {
-        // Get real customers from WooCommerce
-        const realCustomers = await this.wooCommerce.getCustomers({ per_page: 100 });
-        // Get real orders to calculate customer metrics
-        const realOrders = await this.wooCommerce.getOrders({ per_page: 500, status: 'completed' });
-        
-        // Calculate real customer metrics
-        const realTopCustomers = this.calculateRealCustomerMetrics(realCustomers, realOrders, metric, limit, min_orders);
-        
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              period: period,
-              metric: metric,
-              top_customers: realTopCustomers,
-              source: 'woocommerce_api',
-              message: `Top ${realTopCustomers.length} customers by ${metric} from WooCommerce store`
-            }, null, 2)
-          }]
-        };
-      } catch (error) {
-        this.logger.warn('Failed to fetch real customers, using demo data', { error: error instanceof Error ? error.message : error });
-      }
-    }
-
-    // ONLY show demo data if explicitly in demo mode
-    if (this.isDemoMode()) {
-      const topCustomers = this.generateTopCustomersData(metric, limit, period, min_orders);
+    // Only real WooCommerce API - no fallback
+    try {
+      // Get real customers from WooCommerce
+      const realCustomers = await this.wooCommerce.getCustomers({ per_page: 100 });
+      // Get real orders to calculate customer metrics
+      const realOrders = await this.wooCommerce.getOrders({ per_page: 500, status: 'completed' });
+      
+      // Calculate real customer metrics
+      const realTopCustomers = this.calculateRealCustomerMetrics(realCustomers, realOrders, metric, limit, min_orders);
       
       return {
         content: [{
@@ -653,17 +616,16 @@ export class CustomerTools {
             success: true,
             period: period,
             metric: metric,
-            min_orders: min_orders,
-            top_customers: topCustomers,
-            source: 'demo_data',
-            message: `⚠️ DEMO DATA: Top ${limit} customers by ${metric} for period: ${period}`
+            top_customers: realTopCustomers,
+            source: 'woocommerce_api',
+            message: `Top ${realTopCustomers.length} customers by ${metric} from WooCommerce store`
           }, null, 2)
         }]
       };
+    } catch (error) {
+      this.logger.error('Failed to fetch customer data from WooCommerce', { error: error instanceof Error ? error.message : error });
+      throw new Error(`WooCommerce API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    // If not in demo mode and real API failed, return error
-    throw new Error('Unable to fetch customer data from WooCommerce store');
   }
 
   private async getCustomerPurchaseHistory(params: MCPToolParams): Promise<MCPToolResult> {
@@ -689,268 +651,89 @@ export class CustomerTools {
       status 
     });
 
-    // Generate realistic purchase history
-    const purchaseHistory = this.generateCustomerPurchaseHistoryData(
-      customer_id || 1, 
-      date_from, 
-      date_to, 
-      include_products,
-      status
-    );
-    
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          success: true,
-          customer_id: customer_id,
-          email: email,
-          date_range: { from: date_from, to: date_to },
-          purchase_history: purchaseHistory,
-          message: `Purchase history retrieved for ${email || `customer ID ${customer_id}`}`
-        }, null, 2)
-      }]
-    };
-  }
-
-  private generateTopCustomersData(metric: string, limit: number, period: string, minOrders: number): any[] {
-    // ⚠️ DEMO DATA ONLY - This is used when no real WooCommerce connection exists
-    // In production with real credentials, this method won't be called
-    const customers = [
-      {
-        customer_id: 45,
-        email: 'maria.gonzalez@empresa.mx',
-        first_name: 'María',
-        last_name: 'González',
-        total_spent: 45600.00,
-        order_count: 23,
-        avg_order_value: 1982.61,
-        first_order_date: '2022-03-15',
-        last_order_date: '2024-08-28',
-        favorite_products: ['Proteína Whey Premium', 'Colágeno Hidrolizado'],
-        phone: '+52 55 1234 5678',
-        location: 'Ciudad de México, CDMX'
-      },
-      {
-        customer_id: 78,
-        email: 'carlos.martinez@salud.mx',
-        first_name: 'Carlos',
-        last_name: 'Martínez',
-        total_spent: 38750.00,
-        order_count: 19,
-        avg_order_value: 2039.47,
-        first_order_date: '2022-07-20',
-        last_order_date: '2024-08-25',
-        favorite_products: ['Multivitamínico Completo', 'Omega-3 Premium'],
-        phone: '+52 81 9876 5432',
-        location: 'Monterrey, NL'
-      },
-      {
-        customer_id: 156,
-        email: 'ana.lopez@fitness.mx',
-        first_name: 'Ana',
-        last_name: 'López',
-        total_spent: 42300.00,
-        order_count: 31,
-        avg_order_value: 1364.52,
-        first_order_date: '2021-11-10',
-        last_order_date: '2024-08-29',
-        favorite_products: ['Magnesio + Zinc', 'Probióticos Naturales'],
-        phone: '+52 33 4567 8901',
-        location: 'Guadalajara, JAL'
-      },
-      {
-        customer_id: 234,
-        email: 'roberto.herrera@nutri.mx',
-        first_name: 'Roberto',
-        last_name: 'Herrera',
-        total_spent: 35890.00,
-        order_count: 17,
-        avg_order_value: 2111.18,
-        first_order_date: '2023-01-18',
-        last_order_date: '2024-08-26',
-        favorite_products: ['Vitamina D3', 'Coenzima Q10'],
-        phone: '+52 998 2345 6789',
-        location: 'Cancún, QROO'
-      },
-      {
-        customer_id: 189,
-        email: 'patricia.ruiz@wellness.mx',
-        first_name: 'Patricia',
-        last_name: 'Ruiz',
-        total_spent: 29450.00,
-        order_count: 22,
-        avg_order_value: 1338.64,
-        first_order_date: '2022-05-22',
-        last_order_date: '2024-08-27',
-        favorite_products: ['Ashwagandha Orgánica', 'Té Verde Extract'],
-        phone: '+52 664 8765 4321',
-        location: 'Tijuana, BC'
+    // Only real WooCommerce API - no fallback
+    try {
+      // Get customer data first
+      let targetCustomer: any = null;
+      
+      if (customer_id) {
+        targetCustomer = await this.wooCommerce.getCustomer(customer_id);
+      } else if (email) {
+        const customers = await this.wooCommerce.getCustomers({ search: email, per_page: 100 });
+        targetCustomer = customers.find((c: any) => c.email.toLowerCase() === email.toLowerCase());
       }
-    ];
-
-    // Sort by the specified metric
-    let sortedCustomers = [...customers];
-    switch (metric) {
-      case 'total_spent':
-        sortedCustomers.sort((a, b) => b.total_spent - a.total_spent);
-        break;
-      case 'order_count':
-        sortedCustomers.sort((a, b) => b.order_count - a.order_count);
-        break;
-      case 'avg_order_value':
-        sortedCustomers.sort((a, b) => b.avg_order_value - a.avg_order_value);
-        break;
-    }
-
-    // Filter by minimum orders and return limited results
-    return sortedCustomers
-      .filter(customer => customer.order_count >= minOrders)
-      .slice(0, limit);
-  }
-
-  private generateCustomerPurchaseHistoryData(customerId: number, dateFrom?: string, dateTo?: string, includeProducts: boolean = true, status: string[] = ['completed']): any {
-    const customer = {
-      customer_id: customerId,
-      email: 'maria.gonzalez@empresa.mx',
-      first_name: 'María',
-      last_name: 'González',
-      registration_date: '2022-03-15',
-      total_orders: 23,
-      total_spent: 45600.00,
-      avg_order_value: 1982.61
-    };
-
-    const orders = [
-      {
-        order_id: 1089,
-        order_number: 'WC-1089',
-        status: 'completed',
-        date_created: '2024-08-28T10:30:00',
-        total: 2850.00,
-        currency: 'MXN',
-        products: includeProducts ? [
-          {
-            product_id: 101,
-            name: 'Suplemento Omega-3 Premium',
-            sku: 'OMEGA-001',
-            quantity: 3,
-            price: 400.00,
-            total: 1200.00
-          },
-          {
-            product_id: 104,
-            name: 'Colágeno Hidrolizado',
-            sku: 'COLAG-004',
-            quantity: 2,
-            price: 700.00,
-            total: 1400.00
-          },
-          {
-            product_id: 105,
-            name: 'Magnesio + Zinc',
-            sku: 'MG-ZN-005',
-            quantity: 1,
-            price: 250.00,
-            total: 250.00
-          }
-        ] : undefined,
-        payment_method: 'Tarjeta de Crédito',
-        shipping_address: 'Av. Reforma 123, Col. Juárez, CDMX',
-        notes: 'Entrega programada para mañana'
-      },
-      {
-        order_id: 1067,
-        order_number: 'WC-1067',
-        status: 'completed',
-        date_created: '2024-08-15T14:45:00',
-        total: 1950.00,
-        currency: 'MXN',
-        products: includeProducts ? [
-          {
-            product_id: 102,
-            name: 'Proteína Whey Natural',
-            sku: 'PROT-002',
-            quantity: 2,
-            price: 700.00,
-            total: 1400.00
-          },
-          {
-            product_id: 103,
-            name: 'Multivitamínico Completo',
-            sku: 'MULTI-003',
-            quantity: 1,
-            price: 350.00,
-            total: 350.00
-          },
-          {
-            product_id: 110,
-            name: 'Probióticos Naturales',
-            sku: 'PROB-010',
-            quantity: 1,
-            price: 200.00,
-            total: 200.00
-          }
-        ] : undefined,
-        payment_method: 'PayPal',
-        shipping_address: 'Av. Reforma 123, Col. Juárez, CDMX',
-        notes: 'Cliente fiel - descuento aplicado'
-      },
-      {
-        order_id: 1034,
-        order_number: 'WC-1034',
-        status: 'processing',
-        date_created: '2024-08-25T09:15:00',
-        total: 1750.00,
-        currency: 'MXN',
-        products: includeProducts ? [
-          {
-            product_id: 108,
-            name: 'Vitamina D3 + K2',
-            sku: 'VIT-D3K2-008',
-            quantity: 2,
-            price: 450.00,
-            total: 900.00
-          },
-          {
-            product_id: 109,
-            name: 'Coenzima Q10',
-            sku: 'COQ10-009',
-            quantity: 1,
-            price: 850.00,
-            total: 850.00
-          }
-        ] : undefined,
-        payment_method: 'Transferencia Bancaria',
-        shipping_address: 'Av. Reforma 123, Col. Juárez, CDMX',
-        notes: 'Pedido en proceso de empaque'
+      
+      if (!targetCustomer) {
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              message: `Customer ${email || `ID ${customer_id}`} not found in WooCommerce store`,
+              source: 'woocommerce_api'
+            }, null, 2)
+          }]
+        };
       }
-    ];
-
-    // Filter by status
-    const filteredOrders = orders.filter(order => status.includes(order.status));
-
-    // Filter by date range if provided
-    let dateFilteredOrders = filteredOrders;
-    if (dateFrom || dateTo) {
-      dateFilteredOrders = filteredOrders.filter(order => {
-        const orderDate = new Date(order.date_created);
-        if (dateFrom && orderDate < new Date(dateFrom)) return false;
-        if (dateTo && orderDate > new Date(dateTo)) return false;
-        return true;
+      
+      // Get customer orders
+      const customerOrders = await this.wooCommerce.getOrders({ 
+        customer: targetCustomer.id,
+        per_page: 100,
+        status: status.join(',')
       });
-    }
-
-    return {
-      customer_info: customer,
-      orders: dateFilteredOrders,
-      summary: {
-        filtered_orders_count: dateFilteredOrders.length,
-        filtered_total_spent: dateFilteredOrders.reduce((sum, order) => sum + order.total, 0),
-        date_range: { from: dateFrom, to: dateTo },
-        status_filter: status
+      
+      // Filter by date range if provided
+      let filteredOrders = customerOrders;
+      if (date_from || date_to) {
+        filteredOrders = customerOrders.filter((order: any) => {
+          const orderDate = new Date(order.date_created);
+          if (date_from && orderDate < new Date(date_from)) return false;
+          if (date_to && orderDate > new Date(date_to)) return false;
+          return true;
+        });
       }
-    };
+      
+      const purchaseHistory = {
+        customer_info: {
+          customer_id: targetCustomer.id,
+          email: targetCustomer.email,
+          first_name: targetCustomer.first_name,
+          last_name: targetCustomer.last_name,
+          registration_date: targetCustomer.date_created,
+          total_orders: filteredOrders.length,
+          total_spent: filteredOrders.reduce((sum: number, order: any) => sum + parseFloat(order.total || 0), 0)
+        },
+        orders: include_products ? filteredOrders : filteredOrders.map((order: any) => ({
+          ...order,
+          line_items: undefined // Remove product details if not requested
+        })),
+        summary: {
+          filtered_orders_count: filteredOrders.length,
+          filtered_total_spent: filteredOrders.reduce((sum: number, order: any) => sum + parseFloat(order.total || 0), 0),
+          date_range: { from: date_from, to: date_to },
+          status_filter: status
+        }
+      };
+      
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            customer_id: targetCustomer.id,
+            email: targetCustomer.email,
+            date_range: { from: date_from, to: date_to },
+            purchase_history: purchaseHistory,
+            source: 'woocommerce_api',
+            message: `Purchase history retrieved for ${targetCustomer.email} (from WooCommerce store)`
+          }, null, 2)
+        }]
+      };
+    } catch (error) {
+      this.logger.error('Failed to fetch customer purchase history', { error: error instanceof Error ? error.message : error });
+      throw new Error(`WooCommerce API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   private async getActivePromotions(params: MCPToolParams): Promise<MCPToolResult> {
@@ -963,213 +746,48 @@ export class CustomerTools {
 
     this.logger.info('🎯 Getting active promotions', { type, status, category, min_discount });
 
-    // Try real WooCommerce API first, fallback to demo data
-    if (!this.isDemoMode()) {
-      try {
-        // Get real coupons and sales from WooCommerce
-        const realCoupons = await this.wooCommerce.getCoupons({ per_page: 100 });
-        const realPromotions = realCoupons
-          .filter((coupon: any) => coupon.status === 'publish')
-          .map((coupon: any) => ({
-            id: coupon.id,
-            name: coupon.code,
-            type: 'coupon',
-            status: 'active',
-            category: 'general',
-            discount_type: coupon.discount_type,
-            discount_value: parseFloat(coupon.amount || 0),
-            description: coupon.description || `${coupon.amount}${coupon.discount_type === 'percent' ? '%' : ' MXN'} discount`,
-            code: coupon.code,
-            valid_from: coupon.date_created,
-            valid_until: coupon.date_expires,
-            min_amount: parseFloat(coupon.minimum_amount || 0),
-            usage_limit: coupon.usage_limit,
-            used_count: coupon.usage_count || 0,
-            currency: 'MXN'
-          }))
-          .filter((promo: any) => type === 'all' || promo.type === type)
-          .filter((promo: any) => promo.discount_value >= min_discount);
+    // Only real WooCommerce API - no fallback
+    try {
+      // Get real coupons and sales from WooCommerce
+      const realCoupons = await this.wooCommerce.getCoupons({ per_page: 100 });
+      const realPromotions = realCoupons
+        .filter((coupon: any) => coupon.status === 'publish')
+        .map((coupon: any) => ({
+          id: coupon.id,
+          name: coupon.code,
+          type: 'coupon',
+          status: 'active',
+          category: 'general',
+          discount_type: coupon.discount_type,
+          discount_value: parseFloat(coupon.amount || 0),
+          description: coupon.description || `${coupon.amount}${coupon.discount_type === 'percent' ? '%' : ' MXN'} discount`,
+          code: coupon.code,
+          valid_from: coupon.date_created,
+          valid_until: coupon.date_expires,
+          min_amount: parseFloat(coupon.minimum_amount || 0),
+          usage_limit: coupon.usage_limit,
+          used_count: coupon.usage_count || 0,
+          currency: 'MXN'
+        }))
+        .filter((promo: any) => type === 'all' || promo.type === type)
+        .filter((promo: any) => promo.discount_value >= min_discount);
 
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              filter: { type, status, category, min_discount },
-              promotions: realPromotions,
-              source: 'woocommerce_api',
-              message: `Found ${realPromotions.length} ${status} promotions from WooCommerce store`
-            }, null, 2)
-          }]
-        };
-      } catch (error) {
-        this.logger.warn('Failed to fetch real promotions, using demo data', { error: error instanceof Error ? error.message : error });
-      }
-    }
-
-    // ONLY show demo data if explicitly in demo mode
-    if (this.isDemoMode()) {
-      const promotions = this.generateActivePromotionsData(type, status, category, min_discount);
-      
       return {
         content: [{
           type: 'text',
           text: JSON.stringify({
             success: true,
             filter: { type, status, category, min_discount },
-            promotions: promotions,
-            source: 'demo_data',
-            message: `⚠️ DEMO DATA: Found ${promotions.length} ${status} promotions`
+            promotions: realPromotions,
+            source: 'woocommerce_api',
+            message: `Found ${realPromotions.length} ${status} promotions from WooCommerce store`
           }, null, 2)
         }]
       };
+    } catch (error) {
+      this.logger.error('Failed to fetch promotions data from WooCommerce', { error: error instanceof Error ? error.message : error });
+      throw new Error(`WooCommerce API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    // If not in demo mode and real API failed, return error
-    throw new Error('Unable to fetch promotions data from WooCommerce store');
-  }
-
-  private generateActivePromotionsData(type: string, status: string, category?: string, minDiscount: number = 0): any[] {
-    // ⚠️ DEMO DATA ONLY - This is used when no real WooCommerce connection exists
-    // In production with real credentials, this method won't be called
-    const allPromotions = [
-      {
-        id: 'AGOSTO2024',
-        name: 'Promoción de Agosto - Suplementos de Salud',
-        type: 'coupon',
-        status: 'active',
-        category: 'supplements',
-        discount_type: 'percent',
-        discount_value: 25,
-        description: 'Descuento del 25% en todos los suplementos de salud',
-        code: 'AGOSTO25',
-        valid_from: '2024-08-01',
-        valid_until: '2024-08-31',
-        min_amount: 500.00,
-        usage_limit: 1000,
-        used_count: 347,
-        applicable_products: ['Omega-3', 'Multivitamínico', 'Colágeno', 'Magnesio'],
-        currency: 'MXN'
-      },
-      {
-        id: 'BACK2SCHOOL',
-        name: 'Regreso a Clases - Vitaminas Familiares',
-        type: 'sale',
-        status: 'active',
-        category: 'vitamins',
-        discount_type: 'percent',
-        discount_value: 20,
-        description: '20% de descuento en vitaminas para toda la familia',
-        code: 'SCHOOL20',
-        valid_from: '2024-08-15',
-        valid_until: '2024-09-15',
-        min_amount: 300.00,
-        usage_limit: 500,
-        used_count: 156,
-        applicable_products: ['Vitamina C', 'Vitamina D3', 'Multivitamínico Infantil'],
-        currency: 'MXN'
-      },
-      {
-        id: 'PROTEIN_BUNDLE',
-        name: 'Pack de Proteínas - 2x1',
-        type: 'bundle',
-        status: 'active',
-        category: 'protein',
-        discount_type: 'fixed',
-        discount_value: 700.00,
-        description: 'Compra 2 proteínas y paga solo 1 - Ahorra $700 MXN',
-        code: 'PROTEIN2X1',
-        valid_from: '2024-08-20',
-        valid_until: '2024-09-30',
-        min_amount: 1400.00,
-        usage_limit: 100,
-        used_count: 23,
-        applicable_products: ['Proteína Whey Natural', 'Proteína Vegana', 'Caseína Nocturna'],
-        currency: 'MXN'
-      },
-      {
-        id: 'LOYALTY_VIP',
-        name: 'Programa VIP - Clientes Leales',
-        type: 'loyalty',
-        status: 'active',
-        category: 'all',
-        discount_type: 'percent',
-        discount_value: 15,
-        description: '15% de descuento permanente para clientes VIP (más de 10 compras)',
-        code: 'VIP15',
-        valid_from: '2024-01-01',
-        valid_until: '2024-12-31',
-        min_amount: 200.00,
-        usage_limit: null,
-        used_count: 89,
-        applicable_products: 'all',
-        requirements: 'Mínimo 10 compras previas',
-        currency: 'MXN'
-      },
-      {
-        id: 'SEPIEMBRE_PATRIO',
-        name: 'Mes Patrio - Orgullo Mexicano',
-        type: 'seasonal',
-        status: 'scheduled',
-        category: 'all',
-        discount_type: 'percent',
-        discount_value: 30,
-        description: 'Celebra el Mes Patrio con 30% de descuento en productos mexicanos',
-        code: 'PATRIO30',
-        valid_from: '2024-09-01',
-        valid_until: '2024-09-30',
-        min_amount: 400.00,
-        usage_limit: 2000,
-        used_count: 0,
-        applicable_products: ['Productos orgánicos mexicanos', 'Hierbas medicinales'],
-        currency: 'MXN'
-      },
-      {
-        id: 'EXPIRED_SUMMER',
-        name: 'Verano Saludable 2024',
-        type: 'seasonal',
-        status: 'expired',
-        category: 'supplements',
-        discount_type: 'percent',
-        discount_value: 35,
-        description: 'Promoción de verano ya expirada',
-        code: 'SUMMER35',
-        valid_from: '2024-06-01',
-        valid_until: '2024-07-31',
-        min_amount: 600.00,
-        usage_limit: 1500,
-        used_count: 1456,
-        applicable_products: ['Hidratación', 'Energía', 'Quemadores de grasa'],
-        currency: 'MXN'
-      }
-    ];
-
-    // Filter by status
-    let filteredPromotions = allPromotions;
-    if (status !== 'all') {
-      filteredPromotions = allPromotions.filter(promo => promo.status === status);
-    }
-
-    // Filter by type
-    if (type !== 'all') {
-      filteredPromotions = filteredPromotions.filter(promo => promo.type === type);
-    }
-
-    // Filter by category
-    if (category) {
-      filteredPromotions = filteredPromotions.filter(promo => 
-        promo.category === category || promo.category === 'all'
-      );
-    }
-
-    // Filter by minimum discount
-    if (minDiscount > 0) {
-      filteredPromotions = filteredPromotions.filter(promo => 
-        promo.discount_value >= minDiscount
-      );
-    }
-
-    return filteredPromotions;
   }
 
   private calculateRealCustomerMetrics(customers: any[], orders: any[], metric: string, limit: number, minOrders: number): any[] {
