@@ -642,23 +642,28 @@ export class CustomerTools {
       }
     }
 
-    // Fallback to demo data (development/testing only)
-    const topCustomers = this.generateTopCustomersData(metric, limit, period, min_orders);
-    
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          success: true,
-          period: period,
-          metric: metric,
-          min_orders: min_orders,
-          top_customers: topCustomers,
-          source: 'demo_data',
-          message: `Top ${limit} customers by ${metric} for period: ${period} (demo data for development)`
-        }, null, 2)
-      }]
-    };
+    // ONLY show demo data if explicitly in demo mode
+    if (this.isDemoMode()) {
+      const topCustomers = this.generateTopCustomersData(metric, limit, period, min_orders);
+      
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            period: period,
+            metric: metric,
+            min_orders: min_orders,
+            top_customers: topCustomers,
+            source: 'demo_data',
+            message: `⚠️ DEMO DATA: Top ${limit} customers by ${metric} for period: ${period}`
+          }, null, 2)
+        }]
+      };
+    }
+
+    // If not in demo mode and real API failed, return error
+    throw new Error('Unable to fetch customer data from WooCommerce store');
   }
 
   private async getCustomerPurchaseHistory(params: MCPToolParams): Promise<MCPToolResult> {
@@ -1002,21 +1007,26 @@ export class CustomerTools {
       }
     }
 
-    // Fallback to demo data (development/testing only)
-    const promotions = this.generateActivePromotionsData(type, status, category, min_discount);
-    
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          success: true,
-          filter: { type, status, category, min_discount },
-          promotions: promotions,
-          source: 'demo_data',
-          message: `Found ${promotions.length} ${status} promotions (demo data for development)`
-        }, null, 2)
-      }]
-    };
+    // ONLY show demo data if explicitly in demo mode
+    if (this.isDemoMode()) {
+      const promotions = this.generateActivePromotionsData(type, status, category, min_discount);
+      
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            filter: { type, status, category, min_discount },
+            promotions: promotions,
+            source: 'demo_data',
+            message: `⚠️ DEMO DATA: Found ${promotions.length} ${status} promotions`
+          }, null, 2)
+        }]
+      };
+    }
+
+    // If not in demo mode and real API failed, return error
+    throw new Error('Unable to fetch promotions data from WooCommerce store');
   }
 
   private generateActivePromotionsData(type: string, status: string, category?: string, minDiscount: number = 0): any[] {

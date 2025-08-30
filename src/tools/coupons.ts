@@ -438,18 +438,44 @@ export class CouponTools {
 
     this.logger.info('🎫 Getting specific coupon', { id });
 
-    const coupon = this.generateCouponDetailsData(id);
-    
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          success: true,
-          data: coupon,
-          message: `Retrieved coupon: ${coupon.code} - ${coupon.description}`
-        }, null, 2)
-      }]
-    };
+    // Try real WooCommerce API first
+    if (!this.isDemoMode()) {
+      try {
+        const realCoupon = await this.wooCommerce.getCoupon(id);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              data: realCoupon,
+              source: 'woocommerce_api',
+              message: `Retrieved coupon: ${realCoupon.code} (from WooCommerce store)`
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        this.logger.warn('Failed to fetch real coupon, using demo data', { error: error instanceof Error ? error.message : error });
+      }
+    }
+
+    // ONLY show demo data if explicitly in demo mode
+    if (this.isDemoMode()) {
+      const coupon = this.generateCouponDetailsData(id);
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            data: coupon,
+            source: 'demo_data',
+            message: `⚠️ DEMO DATA: ${coupon.code} - ${coupon.description}`
+          }, null, 2)
+        }]
+      };
+    }
+
+    // If not in demo mode and real API failed, return error
+    throw new Error(`Coupon with ID ${id} not found in WooCommerce store`);
   }
 
   private async getCouponByCode(params: MCPToolParams): Promise<MCPToolResult> {
@@ -554,27 +580,32 @@ export class CouponTools {
       }
     }
 
-    // Fallback to demo data (development/testing only)
-    const stats = this.generateCouponUsageStatsData(
-      period, 
-      coupon_id, 
-      coupon_code, 
-      limit, 
-      sort_by
-    );
-    
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          success: true,
-          period: period,
-          analysis: stats,
-          source: 'demo_data',
-          message: `Coupon usage statistics for period: ${period} (demo data for development)`
-        }, null, 2)
-      }]
-    };
+    // ONLY show demo data if explicitly in demo mode
+    if (this.isDemoMode()) {
+      const stats = this.generateCouponUsageStatsData(
+        period, 
+        coupon_id, 
+        coupon_code, 
+        limit, 
+        sort_by
+      );
+      
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            period: period,
+            analysis: stats,
+            source: 'demo_data',
+            message: `⚠️ DEMO DATA: Coupon usage statistics for period: ${period}`
+          }, null, 2)
+        }]
+      };
+    }
+
+    // If not in demo mode and real API failed, return error
+    throw new Error('Unable to fetch coupon usage statistics from WooCommerce store');
   }
 
   private async getTopCouponsUsage(params: MCPToolParams): Promise<MCPToolResult> {
@@ -592,25 +623,60 @@ export class CouponTools {
       include_expired 
     });
 
-    const topCoupons = this.generateTopCouponsUsageData(
-      period, 
-      limit, 
-      min_usage, 
-      include_expired
-    );
-    
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          success: true,
-          period: period,
-          filters: { min_usage, include_expired },
-          top_coupons: topCoupons,
-          message: `Top ${limit} most used coupons for period: ${period}`
-        }, null, 2)
-      }]
-    };
+    // Try real WooCommerce API first
+    if (!this.isDemoMode()) {
+      try {
+        const realOrders = await this.wooCommerce.getOrders({ 
+          per_page: 100,
+          status: 'completed'
+        });
+        const realCoupons = await this.wooCommerce.getCoupons({ per_page: 100 });
+        
+        const realTopCoupons = this.calculateRealTopCoupons(realOrders, realCoupons, period, limit);
+        
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              period: period,
+              analysis: realTopCoupons,
+              source: 'woocommerce_api',
+              message: `Top ${limit} coupons by usage for period: ${period} (from WooCommerce store)`
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        this.logger.warn('Failed to fetch real top coupons, using demo data', { error: error instanceof Error ? error.message : error });
+      }
+    }
+
+    // ONLY show demo data if explicitly in demo mode
+    if (this.isDemoMode()) {
+      const topCoupons = this.generateTopCouponsUsageData(
+        period, 
+        limit, 
+        min_usage, 
+        include_expired
+      );
+      
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            period: period,
+            filters: { min_usage, include_expired },
+            top_coupons: topCoupons,
+            source: 'demo_data',
+            message: `⚠️ DEMO DATA: Top ${limit} most used coupons for period: ${period}`
+          }, null, 2)
+        }]
+      };
+    }
+
+    // If not in demo mode and real API failed, return error
+    throw new Error('Unable to fetch top coupons data from WooCommerce store');
   }
 
   private async createCoupon(params: MCPToolParams): Promise<MCPToolResult> {
@@ -621,28 +687,54 @@ export class CouponTools {
 
     const sanitizedData = ValidationUtils.sanitizeInput(validation.value);
     
-    // Simulate coupon creation
-    const newCoupon = {
-      id: Math.floor(Math.random() * 1000) + 100,
-      ...sanitizedData,
-      date_created: new Date().toISOString(),
-      date_modified: new Date().toISOString(),
-      usage_count: 0,
-      used_by: []
-    };
-
     this.logger.info('✨ Creating new coupon', { code: sanitizedData.code });
     
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          success: true,
-          data: newCoupon,
-          message: `Coupon created successfully: ${newCoupon.code} - ID: ${newCoupon.id}`
-        }, null, 2)
-      }]
-    };
+    // Try real WooCommerce API first
+    if (!this.isDemoMode()) {
+      try {
+        const newCoupon = await this.wooCommerce.createCoupon(sanitizedData);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              data: newCoupon,
+              source: 'woocommerce_api',
+              message: `Coupon created successfully in WooCommerce: ${newCoupon.code} - ID: ${newCoupon.id}`
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        this.logger.error('Failed to create coupon in WooCommerce', { error: error instanceof Error ? error.message : error });
+        throw new Error('Failed to create coupon in WooCommerce store');
+      }
+    }
+
+    // Demo mode simulation only
+    if (this.isDemoMode()) {
+      const newCoupon = {
+        id: Math.floor(Math.random() * 1000) + 100,
+        ...sanitizedData,
+        date_created: new Date().toISOString(),
+        date_modified: new Date().toISOString(),
+        usage_count: 0,
+        used_by: []
+      };
+      
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            data: newCoupon,
+            source: 'demo_data',
+            message: `⚠️ DEMO MODE: Simulated coupon creation: ${newCoupon.code} - ID: ${newCoupon.id}`
+          }, null, 2)
+        }]
+      };
+    }
+
+    throw new Error('Unable to create coupon - invalid configuration');
   }
 
   private async updateCoupon(params: MCPToolParams): Promise<MCPToolResult> {
@@ -1115,5 +1207,98 @@ export class CouponTools {
     return filteredCoupons
       .sort((a, b) => b.usage_count - a.usage_count)
       .slice(0, limit);
+  }
+
+  /**
+   * Calculate real usage statistics from WooCommerce orders and coupons
+   */
+  private calculateRealUsageStats(orders: any[], coupons: any[], period: string, limit: number): any {
+    const now = new Date();
+    const periodStart = this.getPeriodStartDate(period);
+    
+    // Filter orders by period
+    const periodOrders = orders.filter((order: any) => {
+      const orderDate = new Date(order.date_created);
+      return orderDate >= periodStart && orderDate <= now;
+    });
+
+    // Calculate coupon usage from orders
+    const couponUsage = new Map<string, { count: number, total_discount: number, coupon_data: any }>();
+    
+    periodOrders.forEach((order: any) => {
+      if (order.coupon_lines && order.coupon_lines.length > 0) {
+        order.coupon_lines.forEach((couponLine: any) => {
+          const code = couponLine.code;
+          const discount = parseFloat(couponLine.discount) || 0;
+          
+          if (!couponUsage.has(code)) {
+            const couponData = coupons.find((c: any) => c.code === code);
+            couponUsage.set(code, {
+              count: 0,
+              total_discount: 0,
+              coupon_data: couponData || { code, id: null }
+            });
+          }
+          
+          const usage = couponUsage.get(code)!;
+          usage.count += 1;
+          usage.total_discount += discount;
+        });
+      }
+    });
+
+    // Convert to sorted array
+    const sortedStats = Array.from(couponUsage.entries())
+      .map(([code, stats]) => ({
+        coupon_code: code,
+        coupon_id: stats.coupon_data.id,
+        usage_count: stats.count,
+        total_discount_applied: stats.total_discount.toFixed(2),
+        coupon_data: stats.coupon_data
+      }))
+      .sort((a, b) => b.usage_count - a.usage_count)
+      .slice(0, limit);
+
+    return {
+      period_summary: {
+        total_orders_with_coupons: periodOrders.filter((o: any) => o.coupon_lines?.length > 0).length,
+        total_coupon_usage: Array.from(couponUsage.values()).reduce((sum, stats) => sum + stats.count, 0),
+        total_discount_amount: Array.from(couponUsage.values()).reduce((sum, stats) => sum + stats.total_discount, 0).toFixed(2)
+      },
+      top_coupons: sortedStats
+    };
+  }
+
+  /**
+   * Calculate top coupons from real WooCommerce data
+   */
+  private calculateRealTopCoupons(orders: any[], coupons: any[], period: string, limit: number): any {
+    const stats = this.calculateRealUsageStats(orders, coupons, period, limit * 2); // Get more for filtering
+    return {
+      period,
+      limit,
+      top_coupons: stats.top_coupons.slice(0, limit),
+      summary: stats.period_summary
+    };
+  }
+
+  /**
+   * Get start date for a given period
+   */
+  private getPeriodStartDate(period: string): Date {
+    const now = new Date();
+    switch (period) {
+      case 'week':
+        return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      case 'month':
+        return new Date(now.getFullYear(), now.getMonth(), 1);
+      case 'quarter':
+        const quarterStart = Math.floor(now.getMonth() / 3) * 3;
+        return new Date(now.getFullYear(), quarterStart, 1);
+      case 'year':
+        return new Date(now.getFullYear(), 0, 1);
+      default:
+        return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // Default to 30 days
+    }
   }
 }
