@@ -177,11 +177,12 @@ export class MCPProtocolHandler {
         result = await this.orderTools.callTool(name, args);
       } else if (name?.startsWith('wc_get_customer') || name?.startsWith('wc_create_customer') || 
                  name?.startsWith('wc_update_customer') || name?.startsWith('wc_delete_customer') || 
-                 name?.startsWith('wc_batch_customer')) {
+                 name?.startsWith('wc_batch_customer') || name?.startsWith('wc_get_top_customers') ||
+                 name?.startsWith('wc_get_promotions')) {
         result = await this.customerTools.callTool(name, args);
       } else if (name?.startsWith('wc_get_sales') || name?.startsWith('wc_get_daily') || 
                  name?.startsWith('wc_get_monthly') || name?.startsWith('wc_get_yearly') || 
-                 name?.startsWith('wc_get_top') || name?.startsWith('wc_get_revenue') || 
+                 name?.startsWith('wc_get_top_sellers') || name?.startsWith('wc_get_revenue') || 
                  name?.startsWith('wc_get_coupon') || name?.startsWith('wc_get_tax') || 
                  name?.startsWith('wc_get_refund') || name?.startsWith('wc_get_product_sales')) {
         result = await this.analyticsTools.callTool(name, args);

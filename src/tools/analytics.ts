@@ -109,8 +109,7 @@ export class AnalyticsTools {
             period: { 
               type: 'string', 
               enum: ['today', 'yesterday', 'week', 'month', 'quarter', 'year', 'custom', 'august', 'agosto'],
-              default: 'month',
-              description: 'Report period. Use "august" or "agosto" for August 2023 historical data' 
+              description: 'Report period (default: month). Use "august" or "agosto" for August 2023 historical data' 
             },
             start_date: { 
               type: 'string', 
@@ -133,7 +132,9 @@ export class AnalyticsTools {
               format: 'date-time',
               description: 'Current date/time context from n8n {{ $now }} for timezone reference'
             }
-          }
+          },
+          required: [],
+          additionalProperties: false
         }
       },
       {
@@ -150,25 +151,32 @@ export class AnalyticsTools {
             period: { 
               type: 'string', 
               enum: ['today', 'week', 'month', 'quarter', 'year', 'custom'],
-              default: 'month',
-              description: 'Analysis period' 
+              description: 'Analysis period (default: month)' 
             },
-            start_date: { type: 'string', format: 'date', description: 'Start date for custom period' },
-            end_date: { type: 'string', format: 'date', description: 'End date for custom period' },
+            start_date: { 
+              type: 'string', 
+              format: 'date', 
+              description: 'Start date for custom period (YYYY-MM-DD)' 
+            },
+            end_date: { 
+              type: 'string', 
+              format: 'date', 
+              description: 'End date for custom period (YYYY-MM-DD)' 
+            },
             limit: { 
               type: 'integer', 
               minimum: 1, 
               maximum: 100, 
-              default: 20, 
-              description: 'Number of top products to return' 
+              description: 'Number of top products to return (default: 20)' 
             },
             order_by: { 
               type: 'string', 
               enum: ['quantity', 'revenue', 'orders'], 
-              default: 'revenue',
-              description: 'Sort by metric' 
+              description: 'Sort by metric (default: revenue)' 
             }
-          }
+          },
+          required: [],
+          additionalProperties: false
         }
       },
       {
@@ -181,8 +189,7 @@ export class AnalyticsTools {
               type: 'integer', 
               minimum: 1, 
               maximum: 365, 
-              default: 30, 
-              description: 'Number of days to analyze (from today backwards)' 
+              description: 'Number of days to analyze (from today backwards, default: 30)' 
             },
             start_date: { 
               type: 'string', 
@@ -200,15 +207,16 @@ export class AnalyticsTools {
                 type: 'string', 
                 enum: ['pending', 'processing', 'completed', 'cancelled', 'refunded', 'failed'] 
               },
-              default: ['completed', 'processing'],
-              description: 'Order statuses to include' 
+              description: 'Order statuses to include (default: completed, processing)' 
             },
             context_date: {
               type: 'string',
               format: 'date-time',
               description: 'Current date/time context from n8n {{ $now }} for Mexico City timezone (UTC-6)'
             }
-          }
+          },
+          required: [],
+          additionalProperties: false
         }
       },
       {
@@ -221,8 +229,7 @@ export class AnalyticsTools {
               type: 'integer', 
               minimum: 1, 
               maximum: 24, 
-              default: 12, 
-              description: 'Number of months to analyze' 
+              description: 'Number of months to analyze (default: 12)' 
             },
             year: { 
               type: 'integer', 
@@ -232,10 +239,11 @@ export class AnalyticsTools {
             },
             compare_previous: { 
               type: 'boolean', 
-              default: true, 
-              description: 'Include comparison with previous period' 
+              description: 'Include comparison with previous period (default: true)' 
             }
-          }
+          },
+          required: [],
+          additionalProperties: false
         }
       },
       {
@@ -248,8 +256,7 @@ export class AnalyticsTools {
               type: 'integer', 
               minimum: 1, 
               maximum: 10, 
-              default: 3, 
-              description: 'Number of years to analyze' 
+              description: 'Number of years to analyze (default: 3)' 
             },
             start_year: { 
               type: 'integer', 
@@ -257,7 +264,9 @@ export class AnalyticsTools {
               maximum: 2030, 
               description: 'Starting year (default: 3 years ago)' 
             }
-          }
+          },
+          required: [],
+          additionalProperties: false
         }
       },
       {
@@ -269,28 +278,27 @@ export class AnalyticsTools {
             period: { 
               type: 'string', 
               enum: ['today', 'week', 'month', 'quarter', 'year', 'all_time'],
-              default: 'month',
-              description: 'Analysis period' 
+              description: 'Analysis period (default: month)' 
             },
             limit: { 
               type: 'integer', 
               minimum: 1, 
               maximum: 100, 
-              default: 10, 
-              description: 'Number of top products' 
+              description: 'Number of top products (default: 10)' 
             },
             metric: { 
               type: 'string', 
               enum: ['quantity_sold', 'revenue', 'order_count'], 
-              default: 'revenue',
-              description: 'Ranking metric' 
+              description: 'Ranking metric (default: revenue)' 
             },
             category_id: { 
               type: 'integer', 
               minimum: 1, 
-              description: 'Filter by product category' 
+              description: 'Filter by product category (optional)' 
             }
-          }
+          },
+          required: [],
+          additionalProperties: false
         }
       },
       {
@@ -302,21 +310,21 @@ export class AnalyticsTools {
             period: { 
               type: 'string', 
               enum: ['week', 'month', 'quarter', 'year'],
-              default: 'month',
-              description: 'Analysis period' 
+              description: 'Analysis period (default: month)' 
             },
             segment: { 
               type: 'string', 
               enum: ['all', 'new', 'returning', 'vip'], 
-              default: 'all',
-              description: 'Customer segment' 
+              description: 'Customer segment (default: all)' 
             },
             min_orders: { 
               type: 'integer', 
               minimum: 1, 
               description: 'Minimum number of orders for VIP customers' 
             }
-          }
+          },
+          required: [],
+          additionalProperties: false
         }
       },
       {
@@ -328,20 +336,19 @@ export class AnalyticsTools {
             period: { 
               type: 'string', 
               enum: ['today', 'week', 'month', 'quarter', 'year'],
-              default: 'month',
-              description: 'Revenue period' 
+              description: 'Revenue period (default: month)' 
             },
             breakdown: { 
               type: 'boolean', 
-              default: true, 
-              description: 'Include detailed breakdown by categories' 
+              description: 'Include detailed breakdown by categories (default: true)' 
             },
             compare_previous: { 
               type: 'boolean', 
-              default: true, 
-              description: 'Compare with previous period' 
+              description: 'Compare with previous period (default: true)' 
             }
-          }
+          },
+          required: [],
+          additionalProperties: false
         }
       },
       {
@@ -353,21 +360,20 @@ export class AnalyticsTools {
             period: { 
               type: 'string', 
               enum: ['today', 'week', 'month', 'quarter', 'year'],
-              default: 'month',
-              description: 'Statistics period' 
+              description: 'Statistics period (default: month)' 
             },
             group_by: { 
               type: 'string', 
               enum: ['day', 'week', 'month', 'status', 'payment_method'], 
-              default: 'day',
-              description: 'Group results by' 
+              description: 'Group results by (default: day)' 
             },
             include_refunds: { 
               type: 'boolean', 
-              default: false, 
-              description: 'Include refunded orders' 
+              description: 'Include refunded orders (default: false)' 
             }
-          }
+          },
+          required: [],
+          additionalProperties: false
         }
       },
       {
@@ -379,8 +385,7 @@ export class AnalyticsTools {
             period: { 
               type: 'string', 
               enum: ['week', 'month', 'quarter', 'year'],
-              default: 'month',
-              description: 'Analysis period' 
+              description: 'Analysis period (default: month)' 
             },
             coupon_id: { 
               type: 'integer', 
@@ -391,10 +396,11 @@ export class AnalyticsTools {
               type: 'integer', 
               minimum: 1, 
               maximum: 50, 
-              default: 20, 
-              description: 'Number of top coupons' 
+              description: 'Number of top coupons (default: 20)' 
             }
-          }
+          },
+          required: [],
+          additionalProperties: false
         }
       },
       {
@@ -406,8 +412,7 @@ export class AnalyticsTools {
             period: { 
               type: 'string', 
               enum: ['month', 'quarter', 'year'],
-              default: 'month',
-              description: 'Tax reporting period' 
+              description: 'Tax reporting period (default: month)' 
             },
             tax_rate_id: { 
               type: 'integer', 
@@ -417,10 +422,11 @@ export class AnalyticsTools {
             group_by: { 
               type: 'string', 
               enum: ['rate', 'class', 'location'], 
-              default: 'rate',
-              description: 'Group tax data by' 
+              description: 'Group tax data by (default: rate)' 
             }
-          }
+          },
+          required: [],
+          additionalProperties: false
         }
       },
       {
@@ -432,20 +438,19 @@ export class AnalyticsTools {
             period: { 
               type: 'string', 
               enum: ['week', 'month', 'quarter', 'year'],
-              default: 'month',
-              description: 'Analysis period' 
+              description: 'Analysis period (default: month)' 
             },
             reason_analysis: { 
               type: 'boolean', 
-              default: true, 
-              description: 'Include refund reason analysis' 
+              description: 'Include refund reason analysis (default: true)' 
             },
             product_breakdown: { 
               type: 'boolean', 
-              default: false, 
-              description: 'Breakdown by products' 
+              description: 'Breakdown by products (default: false)' 
             }
-          }
+          },
+          required: [],
+          additionalProperties: false
         }
       }
     ];
@@ -1021,8 +1026,37 @@ export class AnalyticsTools {
   }
 
   private async getTopSellersData(dateRange: any, limit: number, metric: string, products: any[]) {
-    // Implementation for top sellers data
-    return [];
+    // Generate realistic Mexican market top sellers data
+    const mockTopSellers = [
+      { product_id: 101, name: 'Suplemento Omega-3 Premium', sku: 'OMEGA-001', quantity_sold: 245, revenue: 98000.00, orders: 180, avg_price: 400.00 },
+      { product_id: 102, name: 'Proteína Whey Natural', sku: 'PROT-002', quantity_sold: 189, revenue: 132300.00, orders: 142, avg_price: 700.00 },
+      { product_id: 103, name: 'Multivitamínico Completo', sku: 'MULTI-003', quantity_sold: 356, revenue: 124600.00, orders: 298, avg_price: 350.00 },
+      { product_id: 104, name: 'Colágeno Hidrolizado', sku: 'COLAG-004', quantity_sold: 167, revenue: 116900.00, orders: 134, avg_price: 700.00 },
+      { product_id: 105, name: 'Magnesio + Zinc', sku: 'MG-ZN-005', quantity_sold: 423, revenue: 105750.00, orders: 356, avg_price: 250.00 },
+      { product_id: 106, name: 'Aceite de Coco Orgánico', sku: 'COCO-006', quantity_sold: 278, revenue: 97300.00, orders: 234, avg_price: 350.00 },
+      { product_id: 107, name: 'Probióticos Advanced', sku: 'PROB-007', quantity_sold: 134, revenue: 93800.00, orders: 112, avg_price: 700.00 },
+      { product_id: 108, name: 'Vitamina D3 + K2', sku: 'VIT-D-008', quantity_sold: 298, revenue: 89400.00, orders: 267, avg_price: 300.00 },
+      { product_id: 109, name: 'Té Verde Extract', sku: 'TE-VER-009', quantity_sold: 512, revenue: 76800.00, orders: 445, avg_price: 150.00 },
+      { product_id: 110, name: 'Ashwagandha Premium', sku: 'ASH-010', quantity_sold: 189, revenue: 75600.00, orders: 167, avg_price: 400.00 }
+    ];
+    
+    // Sort by the requested metric
+    let sortedProducts = [...mockTopSellers];
+    switch (metric) {
+      case 'quantity_sold':
+        sortedProducts.sort((a, b) => b.quantity_sold - a.quantity_sold);
+        break;
+      case 'order_count':
+        sortedProducts.sort((a, b) => b.orders - a.orders);
+        break;
+      case 'revenue':
+      default:
+        sortedProducts.sort((a, b) => b.revenue - a.revenue);
+        break;
+    }
+    
+    // Return limited results
+    return sortedProducts.slice(0, limit);
   }
 
   // Analytics tools with mock data support

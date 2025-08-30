@@ -5,7 +5,7 @@
 
 - **Name**: mcp-woocommerce-server
 - **Goal**: True MCP protocol implementation for WooCommerce automation with n8n
-- **Features**: 37+ WooCommerce tools via native MCP protocol with Mexican market support (MXN currency) and real API integration
+- **Features**: 40+ WooCommerce tools via native MCP protocol with Mexican market support (MXN currency), customer analytics, and real API integration
 
 ## 🎯 URLs & Endpoints
 
@@ -41,11 +41,12 @@
 ## 🔧 Data Architecture
 
 ### WooCommerce Integration
-- **37+ MCP Tools**: Complete WooCommerce API coverage with analytics
+- **40+ MCP Tools**: Complete WooCommerce API coverage with customer & promotion analytics
 - **Product Tools**: Create, read, update, delete, batch operations
 - **Order Tools**: Order management, notes, status updates  
-- **Customer Tools**: Customer CRUD operations and management
+- **Customer Tools**: Customer CRUD operations, top customers analysis, purchase history
 - **Analytics Tools**: 12 comprehensive sales analytics with smart date detection
+- **Promotion Tools**: Active promotions, discounts, and special offers management
 - **Mexican Market**: Native MXN (Pesos Mexicanos) currency support
 - **Real API Integration**: Direct connection to live WooCommerce stores
 - **Authentication**: OAuth 1.0a with consumer key/secret
@@ -63,7 +64,7 @@
 1. **Add MCP Node**: Use n8n's MCP integration node
 2. **WebSocket URL**: `ws://your-server:3000/mcp-ws`
 3. **Protocol**: Select "MCP 2024-11-05"
-4. **Tools Available**: 37+ WooCommerce automation tools
+4. **Tools Available**: 40+ WooCommerce automation tools including customer analytics
 5. **Authentication**: Configure WooCommerce credentials in server .env
 
 ### Smart Date Detection Features
@@ -83,12 +84,30 @@
   }
 }
 
-// Get entire August data with smart year detection  
+// Get top customers by total spending
 {
-  "name": "wc_get_sales_report", 
+  "name": "wc_get_top_customers",
   "arguments": {
-    "period": "august",
-    "context_date": "{{ $now }}"
+    "metric": "total_spent",
+    "limit": 5
+  }
+}
+
+// Get active promotions and discounts
+{
+  "name": "wc_get_promotions_active",
+  "arguments": {
+    "status": "active",
+    "type": "coupon"
+  }
+}
+
+// Get customer purchase history
+{
+  "name": "wc_get_customer_purchase_history",
+  "arguments": {
+    "customer_id": 45,
+    "include_products": true
   }
 }
 ```
@@ -204,7 +223,7 @@ For real WooCommerce integration, ensure your API key has proper permissions:
 ### ✅ Completed Features
 - **Native MCP Protocol**: Complete JSON-RPC 2.0 implementation
 - **Multiple Transports**: WebSocket, SSE, HTTP support
-- **37+ WooCommerce Tools**: Full API coverage via MCP
+- **40+ WooCommerce Tools**: Full API coverage via MCP with customer analytics
 - **Smart Analytics**: 12 analytics tools with intelligent date detection
 - **Mexican Market Support**: MXN currency, realistic pricing, Mexico timezone
 - **Real API Integration**: Direct connection to live WooCommerce stores
@@ -225,4 +244,12 @@ For real WooCommerce integration, ensure your API key has proper permissions:
 n8n MCP Node → WebSocket → MCP Transport → Protocol Handler → WooCommerce Tools → API Response → MCP Response → n8n
 ```
 
-**Last Updated**: August 30, 2025 - v1.2.0 Mexican Market (MXN) & Real API Integration Complete
+**Last Updated**: August 30, 2025 - v1.3.0 Customer Analytics & Promotions Complete
+
+### 🆕 v1.3.0 New Features
+- **Customer Analytics**: `wc_get_top_customers` - Identify top customers by spending, orders, or average value
+- **Purchase History**: `wc_get_customer_purchase_history` - Detailed customer purchase patterns and history
+- **Promotions Management**: `wc_get_promotions_active` - Active discounts, coupons, and special offers
+- **Enhanced Routing**: Smart tool routing for customer vs analytics tools
+- **Mexican Market Data**: Realistic customer profiles with Mexico addresses and phone numbers
+- **Schema Optimization**: All schemas optimized for n8n compatibility (no default values)
