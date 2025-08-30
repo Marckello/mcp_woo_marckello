@@ -10,21 +10,7 @@ export class CouponTools {
     private logger: Logger
   ) {}
 
-  private isDemoMode(): boolean {
-    // Check if we're in demo mode based on environment variables
-    const consumerKey = process.env.WOOCOMMERCE_CONSUMER_KEY || '';
-    const siteUrl = process.env.WOOCOMMERCE_SITE_URL || '';
-    
-    return (
-      consumerKey.includes('demo') || 
-      consumerKey.includes('test') || 
-      consumerKey.includes('your_') ||
-      siteUrl.includes('demo') ||
-      siteUrl.includes('your-store') ||
-      !consumerKey || 
-      !siteUrl
-    );
-  }
+
 
   getToolDefinitions(): any[] {
     return this.getTools().map(tool => ({
@@ -392,42 +378,25 @@ export class CouponTools {
 
     this.logger.info('📋 Getting coupons list', { page, per_page, search, code });
 
-    // Try real WooCommerce API first, fallback to demo data
-    if (!this.isDemoMode()) {
-      try {
-        const realCoupons = await this.wooCommerce.getCoupons({ page, per_page, search });
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              data: realCoupons,
-              pagination: { page, per_page, total: realCoupons.length },
-              source: 'woocommerce_api',
-              message: `Retrieved ${realCoupons.length} coupons from WooCommerce store`
-            }, null, 2)
-          }]
-        };
-      } catch (error) {
-        this.logger.warn('Failed to fetch real coupons, using demo data', { error: error instanceof Error ? error.message : error });
-      }
+    // Only real WooCommerce API - no fallback
+    try {
+      const realCoupons = await this.wooCommerce.getCoupons({ page, per_page, search });
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            data: realCoupons,
+            pagination: { page, per_page, total: realCoupons.length },
+            source: 'woocommerce_api',
+            message: `Retrieved ${realCoupons.length} coupons from WooCommerce store`
+          }, null, 2)
+        }]
+      };
+    } catch (error) {
+      this.logger.error('Failed to fetch coupons from WooCommerce', { error: error instanceof Error ? error.message : error });
+      throw new Error(`WooCommerce API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    // Fallback to demo data (development/testing only)
-    const coupons = this.generateCouponsData(page, per_page, search, code);
-    
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          success: true,
-          data: coupons,
-          pagination: { page, per_page, total: 25 },
-          source: 'demo_data',
-          message: `Retrieved ${coupons.length} coupons (demo data for development)`
-        }, null, 2)
-      }]
-    };
   }
 
   private async getCoupon(params: MCPToolParams): Promise<MCPToolResult> {
@@ -438,44 +407,24 @@ export class CouponTools {
 
     this.logger.info('🎫 Getting specific coupon', { id });
 
-    // Try real WooCommerce API first
-    if (!this.isDemoMode()) {
-      try {
-        const realCoupon = await this.wooCommerce.getCoupon(id);
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              data: realCoupon,
-              source: 'woocommerce_api',
-              message: `Retrieved coupon: ${realCoupon.code} (from WooCommerce store)`
-            }, null, 2)
-          }]
-        };
-      } catch (error) {
-        this.logger.warn('Failed to fetch real coupon, using demo data', { error: error instanceof Error ? error.message : error });
-      }
-    }
-
-    // ONLY show demo data if explicitly in demo mode
-    if (this.isDemoMode()) {
-      const coupon = this.generateCouponDetailsData(id);
+    // Only real WooCommerce API - no fallback
+    try {
+      const realCoupon = await this.wooCommerce.getCoupon(id);
       return {
         content: [{
           type: 'text',
           text: JSON.stringify({
             success: true,
-            data: coupon,
-            source: 'demo_data',
-            message: `⚠️ DEMO DATA: ${coupon.code} - ${coupon.description}`
+            data: realCoupon,
+            source: 'woocommerce_api',
+            message: `Retrieved coupon: ${realCoupon.code} (from WooCommerce store)`
           }, null, 2)
         }]
       };
+    } catch (error) {
+      this.logger.error('Failed to fetch coupon from WooCommerce', { error: error instanceof Error ? error.message : error });
+      throw new Error(`Coupon with ID ${id} not found in WooCommerce store`);
     }
-
-    // If not in demo mode and real API failed, return error
-    throw new Error(`Coupon with ID ${id} not found in WooCommerce store`);
   }
 
   private async getCouponByCode(params: MCPToolParams): Promise<MCPToolResult> {
@@ -486,76 +435,47 @@ export class CouponTools {
 
     this.logger.info('🔍 Finding coupon by code', { code, include_usage_stats });
 
-    // DEBUG LOG: Check demo mode status
-    this.logger.info(`🔍 DEBUG: isDemoMode() = ${this.isDemoMode()}, searching for code: ${code}`);
-    
-    // Try real WooCommerce API first, fallback to demo data
-    if (!this.isDemoMode()) {
-      try {
-        this.logger.info('🔄 Attempting real WooCommerce API call for coupon search...');
-        // Search for coupon by code in real WooCommerce
-        const realCoupons = await this.wooCommerce.getCoupons({ search: code, per_page: 100 });
-        this.logger.info(`📦 Real API returned ${realCoupons.length} coupons`);
-        
-        const foundCoupon = realCoupons.find((c: any) => c.code.toLowerCase() === code.toLowerCase());
-        
-        if (foundCoupon) {
-          this.logger.info(`✅ Found real coupon: ${foundCoupon.code}`);
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                search_code: code,
-                data: foundCoupon,
-                source: 'woocommerce_api',
-                message: `Found coupon: ${foundCoupon.code} (from WooCommerce store)`
-              }, null, 2)
-            }]
-          };
-        } else {
-          this.logger.info(`❌ Coupon '${code}' not found in real WooCommerce store`);
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                success: false,
-                search_code: code,
-                message: `Coupon '${code}' not found in WooCommerce store`,
-                source: 'woocommerce_api'
-              }, null, 2)
-            }]
-          };
-        }
-      } catch (error) {
-        this.logger.error('🚨 REAL API FAILED:', { error: error instanceof Error ? error.message : error });
-        throw new Error(`WooCommerce API error when searching for '${code}': ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }
-
-    // ONLY show demo data if explicitly in demo mode
-    if (this.isDemoMode()) {
-      this.logger.info('📋 Using demo data because isDemoMode() = true');
-      const coupon = this.findCouponByCode(code, include_usage_stats);
+    // Only real WooCommerce API - no fallback
+    try {
+      this.logger.info(`🔄 Searching for coupon '${code}' in WooCommerce store`);
+      // Search for coupon by code in real WooCommerce
+      const realCoupons = await this.wooCommerce.getCoupons({ search: code, per_page: 100 });
+      this.logger.info(`📦 WooCommerce returned ${realCoupons.length} coupons`);
       
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            success: true,
-            search_code: code,
-            data: coupon,
-            source: coupon ? 'demo_data' : 'not_found',
-            message: coupon 
-              ? `⚠️ DEMO DATA: ${coupon.code}` 
-              : `Coupon with code '${code}' not found (demo mode)`
-          }, null, 2)
-        }]
-      };
+      const foundCoupon = realCoupons.find((c: any) => c.code.toLowerCase() === code.toLowerCase());
+      
+      if (foundCoupon) {
+        this.logger.info(`✅ Found coupon: ${foundCoupon.code}`);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              search_code: code,
+              data: foundCoupon,
+              source: 'woocommerce_api',
+              message: `Found coupon: ${foundCoupon.code} (from WooCommerce store)`
+            }, null, 2)
+          }]
+        };
+      } else {
+        this.logger.info(`❌ Coupon '${code}' not found in WooCommerce store`);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              search_code: code,
+              message: `Coupon '${code}' not found in WooCommerce store`,
+              source: 'woocommerce_api'
+            }, null, 2)
+          }]
+        };
+      }
+    } catch (error) {
+      this.logger.error('Failed to search coupons in WooCommerce', { error: error instanceof Error ? error.message : error });
+      throw new Error(`WooCommerce API error when searching for '${code}': ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    // If not in demo mode and we reach here, throw error
-    throw new Error(`Coupon '${code}' not found and not in demo mode`);
   }
 
   private async getCouponUsageStats(params: MCPToolParams): Promise<MCPToolResult> {
@@ -577,45 +497,17 @@ export class CouponTools {
       sort_by 
     });
 
-    // Try real WooCommerce API first, fallback to demo data
-    if (!this.isDemoMode()) {
-      try {
-        // Get real orders and coupons to calculate usage stats
-        const realOrders = await this.wooCommerce.getOrders({ 
-          per_page: 100,
-          status: 'completed'
-        });
-        const realCoupons = await this.wooCommerce.getCoupons({ per_page: 100 });
-        
-        // Calculate real usage statistics from orders
-        const realStats = this.calculateRealUsageStats(realOrders, realCoupons, period, limit);
-        
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              period: period,
-              analysis: realStats,
-              source: 'woocommerce_api',
-              message: `Coupon usage statistics for period: ${period} (from WooCommerce store)`
-            }, null, 2)
-          }]
-        };
-      } catch (error) {
-        this.logger.warn('Failed to fetch real coupon stats, using demo data', { error: error instanceof Error ? error.message : error });
-      }
-    }
-
-    // ONLY show demo data if explicitly in demo mode
-    if (this.isDemoMode()) {
-      const stats = this.generateCouponUsageStatsData(
-        period, 
-        coupon_id, 
-        coupon_code, 
-        limit, 
-        sort_by
-      );
+    // Only real WooCommerce API - no fallback
+    try {
+      // Get real orders and coupons to calculate usage stats
+      const realOrders = await this.wooCommerce.getOrders({ 
+        per_page: 100,
+        status: 'completed'
+      });
+      const realCoupons = await this.wooCommerce.getCoupons({ per_page: 100 });
+      
+      // Calculate real usage statistics from orders
+      const realStats = this.calculateRealUsageStats(realOrders, realCoupons, period, limit);
       
       return {
         content: [{
@@ -623,16 +515,16 @@ export class CouponTools {
           text: JSON.stringify({
             success: true,
             period: period,
-            analysis: stats,
-            source: 'demo_data',
-            message: `⚠️ DEMO DATA: Coupon usage statistics for period: ${period}`
+            analysis: realStats,
+            source: 'woocommerce_api',
+            message: `Coupon usage statistics for period: ${period} (from WooCommerce store)`
           }, null, 2)
         }]
       };
+    } catch (error) {
+      this.logger.error('Failed to fetch coupon usage statistics', { error: error instanceof Error ? error.message : error });
+      throw new Error(`WooCommerce API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    // If not in demo mode and real API failed, return error
-    throw new Error('Unable to fetch coupon usage statistics from WooCommerce store');
   }
 
   private async getTopCouponsUsage(params: MCPToolParams): Promise<MCPToolResult> {
@@ -650,42 +542,15 @@ export class CouponTools {
       include_expired 
     });
 
-    // Try real WooCommerce API first
-    if (!this.isDemoMode()) {
-      try {
-        const realOrders = await this.wooCommerce.getOrders({ 
-          per_page: 100,
-          status: 'completed'
-        });
-        const realCoupons = await this.wooCommerce.getCoupons({ per_page: 100 });
-        
-        const realTopCoupons = this.calculateRealTopCoupons(realOrders, realCoupons, period, limit);
-        
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              period: period,
-              analysis: realTopCoupons,
-              source: 'woocommerce_api',
-              message: `Top ${limit} coupons by usage for period: ${period} (from WooCommerce store)`
-            }, null, 2)
-          }]
-        };
-      } catch (error) {
-        this.logger.warn('Failed to fetch real top coupons, using demo data', { error: error instanceof Error ? error.message : error });
-      }
-    }
-
-    // ONLY show demo data if explicitly in demo mode
-    if (this.isDemoMode()) {
-      const topCoupons = this.generateTopCouponsUsageData(
-        period, 
-        limit, 
-        min_usage, 
-        include_expired
-      );
+    // Only real WooCommerce API - no fallback
+    try {
+      const realOrders = await this.wooCommerce.getOrders({ 
+        per_page: 100,
+        status: 'completed'
+      });
+      const realCoupons = await this.wooCommerce.getCoupons({ per_page: 100 });
+      
+      const realTopCoupons = this.calculateRealTopCoupons(realOrders, realCoupons, period, limit);
       
       return {
         content: [{
@@ -693,17 +558,16 @@ export class CouponTools {
           text: JSON.stringify({
             success: true,
             period: period,
-            filters: { min_usage, include_expired },
-            top_coupons: topCoupons,
-            source: 'demo_data',
-            message: `⚠️ DEMO DATA: Top ${limit} most used coupons for period: ${period}`
+            analysis: realTopCoupons,
+            source: 'woocommerce_api',
+            message: `Top ${limit} coupons by usage for period: ${period} (from WooCommerce store)`
           }, null, 2)
         }]
       };
+    } catch (error) {
+      this.logger.error('Failed to fetch top coupons data', { error: error instanceof Error ? error.message : error });
+      throw new Error(`WooCommerce API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    // If not in demo mode and real API failed, return error
-    throw new Error('Unable to fetch top coupons data from WooCommerce store');
   }
 
   private async createCoupon(params: MCPToolParams): Promise<MCPToolResult> {
@@ -716,52 +580,24 @@ export class CouponTools {
     
     this.logger.info('✨ Creating new coupon', { code: sanitizedData.code });
     
-    // Try real WooCommerce API first
-    if (!this.isDemoMode()) {
-      try {
-        const newCoupon = await this.wooCommerce.createCoupon(sanitizedData);
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              data: newCoupon,
-              source: 'woocommerce_api',
-              message: `Coupon created successfully in WooCommerce: ${newCoupon.code} - ID: ${newCoupon.id}`
-            }, null, 2)
-          }]
-        };
-      } catch (error) {
-        this.logger.error('Failed to create coupon in WooCommerce', { error: error instanceof Error ? error.message : error });
-        throw new Error('Failed to create coupon in WooCommerce store');
-      }
-    }
-
-    // Demo mode simulation only
-    if (this.isDemoMode()) {
-      const newCoupon = {
-        id: Math.floor(Math.random() * 1000) + 100,
-        ...sanitizedData,
-        date_created: new Date().toISOString(),
-        date_modified: new Date().toISOString(),
-        usage_count: 0,
-        used_by: []
-      };
-      
+    // Only real WooCommerce API - no simulation
+    try {
+      const newCoupon = await this.wooCommerce.createCoupon(sanitizedData);
       return {
         content: [{
           type: 'text',
           text: JSON.stringify({
             success: true,
             data: newCoupon,
-            source: 'demo_data',
-            message: `⚠️ DEMO MODE: Simulated coupon creation: ${newCoupon.code} - ID: ${newCoupon.id}`
+            source: 'woocommerce_api',
+            message: `Coupon created successfully in WooCommerce: ${newCoupon.code} - ID: ${newCoupon.id}`
           }, null, 2)
         }]
       };
+    } catch (error) {
+      this.logger.error('Failed to create coupon in WooCommerce', { error: error instanceof Error ? error.message : error });
+      throw new Error(`WooCommerce API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    throw new Error('Unable to create coupon - invalid configuration');
   }
 
   private async updateCoupon(params: MCPToolParams): Promise<MCPToolResult> {
@@ -810,282 +646,9 @@ export class CouponTools {
     };
   }
 
-  private generateCouponsData(page: number, perPage: number, search?: string, code?: string): any[] {
-    const allCoupons = [
-      {
-        id: 1,
-        code: 'AGOSTO25',
-        amount: '25.00',
-        date_created: '2024-08-01T00:00:00',
-        date_expires: '2024-08-31T23:59:59',
-        discount_type: 'percent',
-        description: 'Descuento del 25% en suplementos de salud',
-        usage_count: 347,
-        usage_limit: 1000,
-        minimum_amount: '500.00'
-      },
-      {
-        id: 2,
-        code: 'SCHOOL20',
-        amount: '20.00',
-        date_created: '2024-08-15T00:00:00',
-        date_expires: '2024-09-15T23:59:59',
-        discount_type: 'percent',
-        description: '20% de descuento en vitaminas familiares',
-        usage_count: 156,
-        usage_limit: 500,
-        minimum_amount: '300.00'
-      },
-      {
-        id: 3,
-        code: 'PROTEIN2X1',
-        amount: '700.00',
-        date_created: '2024-08-20T00:00:00',
-        date_expires: '2024-09-30T23:59:59',
-        discount_type: 'fixed_cart',
-        description: 'Compra 2 proteínas y paga solo 1 - Ahorra $700 MXN',
-        usage_count: 23,
-        usage_limit: 100,
-        minimum_amount: '1400.00'
-      },
-      {
-        id: 4,
-        code: 'VIP15',
-        amount: '15.00',
-        date_created: '2024-01-01T00:00:00',
-        date_expires: '2024-12-31T23:59:59',
-        discount_type: 'percent',
-        description: '15% de descuento permanente para clientes VIP',
-        usage_count: 89,
-        usage_limit: null,
-        minimum_amount: '200.00'
-      },
-      {
-        id: 5,
-        code: 'holasalud',
-        amount: '10.00',
-        date_created: '2024-08-15T00:00:00',
-        date_expires: '2024-09-30T23:59:59',
-        discount_type: 'percent',
-        description: '10% de descuento para nuevos clientes de salud',
-        usage_count: 42,
-        usage_limit: 500,
-        minimum_amount: '200.00'
-      }
-    ];
-
-    // Filter by search or code if provided
-    let filteredCoupons = allCoupons;
-    if (search) {
-      filteredCoupons = allCoupons.filter(coupon => 
-        coupon.code.toLowerCase().includes(search.toLowerCase()) ||
-        coupon.description.toLowerCase().includes(search.toLowerCase())
-      );
-    }
-    if (code) {
-      filteredCoupons = allCoupons.filter(coupon => 
-        coupon.code.toLowerCase() === code.toLowerCase()
-      );
-    }
-
-    // Pagination
-    const startIndex = (page - 1) * perPage;
-    return filteredCoupons.slice(startIndex, startIndex + perPage);
-  }
-
-  private generateCouponDetailsData(id: number): any {
-    const couponMap: any = {
-      1: {
-        id: 1,
-        code: 'AGOSTO25',
-        amount: '25.00',
-        date_created: '2024-08-01T00:00:00',
-        date_expires: '2024-08-31T23:59:59',
-        date_modified: '2024-08-01T00:00:00',
-        discount_type: 'percent',
-        description: 'Descuento del 25% en suplementos de salud',
-        usage_count: 347,
-        usage_limit: 1000,
-        usage_limit_per_user: 1,
-        minimum_amount: '500.00',
-        maximum_amount: '5000.00',
-        individual_use: false,
-        exclude_sale_items: false,
-        product_ids: [],
-        exclude_product_ids: [],
-        product_categories: [15, 16, 17], // Supplements categories
-        exclude_product_categories: [],
-        free_shipping: false,
-        used_by: ['maria.gonzalez@empresa.mx', 'carlos.martinez@salud.mx']
-      },
-      5: {
-        id: 5,
-        code: 'holasalud',
-        amount: '10.00',
-        date_created: '2024-08-15T00:00:00',
-        date_expires: '2024-09-30T23:59:59',
-        date_modified: '2024-08-15T00:00:00',
-        discount_type: 'percent',
-        description: '10% de descuento para nuevos clientes de salud',
-        usage_count: 42,
-        usage_limit: 500,
-        usage_limit_per_user: 1,
-        minimum_amount: '200.00',
-        maximum_amount: '2000.00',
-        individual_use: false,
-        exclude_sale_items: false,
-        product_ids: [],
-        exclude_product_ids: [],
-        product_categories: [15, 16], // Health supplements
-        exclude_product_categories: [],
-        free_shipping: false,
-        used_by: ['cliente.salud@ejemplo.com', 'nueva.cliente@nutricion.mx']
-      }
-    };
-
-    return couponMap[id] || {
-      id: id,
-      code: 'UNKNOWN',
-      amount: '0.00',
-      description: 'Coupon not found',
-      usage_count: 0
-    };
-  }
-
-  private findCouponByCode(code: string, includeStats: boolean): any | null {
-    const coupons = this.generateCouponsData(1, 100);
-    const coupon = coupons.find(c => c.code.toLowerCase() === code.toLowerCase());
-    
-    if (!coupon) return null;
-
-    const detailedCoupon = this.generateCouponDetailsData(coupon.id);
-    
-    if (includeStats) {
-      detailedCoupon.usage_stats = {
-        conversion_rate: (detailedCoupon.usage_count / (detailedCoupon.usage_limit || 1000) * 100).toFixed(2) + '%',
-        average_order_value: 1250.00,
-        total_revenue_impact: detailedCoupon.usage_count * 1250.00 * (parseFloat(detailedCoupon.amount) / 100),
-        most_used_products: ['Suplemento Omega-3 Premium', 'Multivitamínico Completo'],
-        usage_by_month: {
-          'Aug 2024': detailedCoupon.usage_count
-        }
-      };
-    }
-
-    return detailedCoupon;
-  }
-
-  private generateCouponUsageStatsData(
-    period: string, 
-    couponId?: number, 
-    couponCode?: string, 
-    limit: number = 10, 
-    sortBy: string = 'usage_count'
-  ): any {
-    // ⚠️ DEMO DATA ONLY - This is used when no real WooCommerce connection exists
-    // In production with real credentials, this method won't be called
-    const augustStats = {
-      period_summary: {
-        total_coupons_used: 4,
-        total_usage_count: 615,
-        total_discount_amount: 125750.00,
-        total_revenue_impact: 2650000.00,
-        average_discount_per_use: 204.47,
-        conversion_rate: '61.5%',
-        data_warning: '⚠️ DEMO DATA - Replace with real WooCommerce credentials for production'
-      },
-      top_coupons: [
-        {
-          coupon_id: 1,
-          code: 'AGOSTO25',
-          usage_count: 347,
-          discount_amount: 86750.00,
-          revenue_impact: 1735000.00,
-          conversion_rate: '34.7%',
-          average_order_value: 1250.00,
-          description: 'Descuento del 25% en suplementos de salud',
-          status: 'active',
-          expires: '2024-08-31'
-        },
-        {
-          coupon_id: 2,
-          code: 'SCHOOL20',
-          usage_count: 156,
-          discount_amount: 23400.00,
-          revenue_impact: 468000.00,
-          conversion_rate: '31.2%',
-          average_order_value: 750.00,
-          description: '20% de descuento en vitaminas familiares',
-          status: 'active',
-          expires: '2024-09-15'
-        },
-        {
-          coupon_id: 4,
-          code: 'VIP15',
-          usage_count: 89,
-          discount_amount: 13350.00,
-          revenue_impact: 356000.00,
-          conversion_rate: '89.0%',
-          average_order_value: 1000.00,
-          description: '15% de descuento permanente para clientes VIP',
-          status: 'active',
-          expires: '2024-12-31'
-        },
-        {
-          coupon_id: 3,
-          code: 'PROTEIN2X1',
-          usage_count: 23,
-          discount_amount: 16100.00,
-          revenue_impact: 91000.00,
-          conversion_rate: '23.0%',
-          average_order_value: 1400.00,
-          description: 'Compra 2 proteínas y paga solo 1',
-          status: 'active',
-          expires: '2024-09-30'
-        }
-      ],
-      period_comparison: {
-        previous_period: 'July 2024',
-        growth: {
-          usage_count: '+15.2%',
-          discount_amount: '+12.8%',
-          conversion_rate: '+3.1%'
-        }
-      },
-      most_popular_days: [
-        { date: '2024-08-28', usage_count: 45 },
-        { date: '2024-08-15', usage_count: 38 },
-        { date: '2024-08-01', usage_count: 52 }
-      ]
-    };
-
-    // If specific coupon requested
-    if (couponId || couponCode) {
-      const targetCoupon = augustStats.top_coupons.find(c => 
-        (couponId && c.coupon_id === couponId) ||
-        (couponCode && c.code.toLowerCase() === couponCode.toLowerCase())
-      );
-
-      if (targetCoupon) {
-        return {
-          coupon_specific_stats: targetCoupon,
-          daily_usage: [
-            { date: '2024-08-01', usage: 15 },
-            { date: '2024-08-15', usage: 12 },
-            { date: '2024-08-28', usage: 18 }
-          ],
-          customer_segments: {
-            new_customers: '35%',
-            returning_customers: '45%',
-            vip_customers: '20%'
-          }
-        };
-      }
-    }
-
-    return augustStats;
-  }
-
+  /**
+   * Calculate real usage statistics from WooCommerce orders and coupons
+   */
   private calculateRealUsageStats(orders: any[], coupons: any[], period: string, limit: number): any {
     // Calculate real statistics from WooCommerce orders and coupons
     const couponUsage = new Map();
@@ -1155,85 +718,6 @@ export class CouponTools {
       top_coupons: topCoupons,
       data_source: 'real_woocommerce_data'
     };
-  }
-
-  private generateTopCouponsUsageData(
-    period: string, 
-    limit: number, 
-    minUsage: number, 
-    includeExpired: boolean
-  ): any[] {
-    const allCoupons = [
-      {
-        coupon_id: 1,
-        code: 'AGOSTO25',
-        usage_count: 347,
-        discount_amount: 86750.00,
-        revenue_impact: 1735000.00,
-        status: 'active',
-        expires: '2024-08-31',
-        description: 'Descuento del 25% en suplementos de salud',
-        average_order_value: 1250.00,
-        conversion_rate: '34.7%',
-        customer_satisfaction: 4.8
-      },
-      {
-        coupon_id: 2,
-        code: 'SCHOOL20',
-        usage_count: 156,
-        discount_amount: 23400.00,
-        revenue_impact: 468000.00,
-        status: 'active',
-        expires: '2024-09-15',
-        description: '20% de descuento en vitaminas familiares',
-        average_order_value: 750.00,
-        conversion_rate: '31.2%',
-        customer_satisfaction: 4.6
-      },
-      {
-        coupon_id: 4,
-        code: 'VIP15',
-        usage_count: 89,
-        discount_amount: 13350.00,
-        revenue_impact: 356000.00,
-        status: 'active',
-        expires: '2024-12-31',
-        description: '15% de descuento permanente para clientes VIP',
-        average_order_value: 1000.00,
-        conversion_rate: '89.0%',
-        customer_satisfaction: 4.9
-      },
-      {
-        coupon_id: 3,
-        code: 'PROTEIN2X1',
-        usage_count: 23,
-        discount_amount: 16100.00,
-        revenue_impact: 91000.00,
-        status: 'active',
-        expires: '2024-09-30',
-        description: 'Compra 2 proteínas y paga solo 1',
-        average_order_value: 1400.00,
-        conversion_rate: '23.0%',
-        customer_satisfaction: 4.7
-      }
-    ];
-
-    // Filter by minimum usage and expired status
-    let filteredCoupons = allCoupons.filter(coupon => 
-      coupon.usage_count >= minUsage
-    );
-
-    if (!includeExpired) {
-      const now = new Date();
-      filteredCoupons = filteredCoupons.filter(coupon => 
-        new Date(coupon.expires) > now
-      );
-    }
-
-    // Sort by usage count (descending) and return top N
-    return filteredCoupons
-      .sort((a, b) => b.usage_count - a.usage_count)
-      .slice(0, limit);
   }
 
   /**
