@@ -189,27 +189,6 @@ curl -X POST http://localhost:3000/mcp \
   -d '{"jsonrpc": "2.0", "method": "initialize", "id": 1}'
 ```
 
-## 🔑 Environment Variables
-
-```bash
-# Server Configuration
-PORT=3000
-HOST=0.0.0.0
-NODE_ENV=production
-
-# WooCommerce API (Real Store Configuration)
-WOOCOMMERCE_SITE_URL=https://www.adaptohealmx.com
-WOOCOMMERCE_CONSUMER_KEY=ck_34d17724245f34dbbcd7b0f05b943c89755eeb
-WOOCOMMERCE_CONSUMER_SECRET=cs_118d871a343de8dbcab864c85e81b40453f05458
-WOOCOMMERCE_API_VERSION=3
-
-# Security & Logging  
-ENABLE_CORS=true
-LOG_LEVEL=info
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX=100
-```
-
 ## 🏪 WooCommerce API Setup
 
 ### Required API Permissions
