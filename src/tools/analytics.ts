@@ -503,7 +503,7 @@ export class AnalyticsTools {
   private async getSalesReport(params: MCPToolParams): Promise<MCPToolResult> {
     const { period = 'month', start_date, end_date, currency, context_date } = params;
     
-    // Only real WooCommerce API - no mock data
+    // Real WooCommerce API integration
     
     try {
       // Calculate date range based on period with Mexico timezone context
@@ -593,7 +593,7 @@ export class AnalyticsTools {
       order_by = 'revenue' 
     } = params;
     
-    // Check if using demo credentials - return mock data
+    // WooCommerce API integration
 
     
     const dateRange = this.calculateDateRange(period, start_date, end_date);
@@ -627,7 +627,7 @@ export class AnalyticsTools {
         }]
       };
     } catch (error) {
-      // Fallback to mock data on API error
+      // Handle API errors
 
     }
   }
@@ -635,7 +635,7 @@ export class AnalyticsTools {
   private async getDailySales(params: MCPToolParams): Promise<MCPToolResult> {
     const { days = 30, start_date, end_date, status = ['completed', 'processing'], context_date } = params;
     
-    // Check if using demo credentials - return mock data
+    // WooCommerce API integration
 
     
     try {
@@ -1019,7 +1019,7 @@ export class AnalyticsTools {
   }
 
   private async getTopSellersData(dateRange: any, limit: number, metric: string, products: any[]) {
-    // Only real WooCommerce API - no demo data
+    // WooCommerce API integration
     try {
       const orders = await this.wooCommerce.getOrders({ 
         per_page: 500, 
@@ -1075,9 +1075,9 @@ export class AnalyticsTools {
     }
   }
 
-  // Analytics tools with mock data support
+  // Analytics tools
   private async getCustomerAnalytics(params: MCPToolParams): Promise<MCPToolResult> {
-    // Only real WooCommerce API - no demo data
+    // WooCommerce API integration
     try {
       const customers = await this.wooCommerce.getCustomers({ per_page: 100 });
       const orders = await this.wooCommerce.getOrders({ per_page: 500, status: 'completed' });
@@ -1136,7 +1136,7 @@ export class AnalyticsTools {
   }
 
   private async getRevenueStats(params: MCPToolParams): Promise<MCPToolResult> {
-    // Only real WooCommerce API - no demo data
+    // WooCommerce API integration
     try {
       const orders = await this.wooCommerce.getOrders({ per_page: 500, status: 'completed' });
       
@@ -1201,7 +1201,7 @@ export class AnalyticsTools {
   }
 
   private async getOrderStats(params: MCPToolParams): Promise<MCPToolResult> {
-    // Only real WooCommerce API - no demo data
+    // WooCommerce API integration
     try {
       const allOrders = await this.wooCommerce.getOrders({ per_page: 500 });
       
@@ -1282,7 +1282,7 @@ export class AnalyticsTools {
   }
 
   private async getCouponStats(params: MCPToolParams): Promise<MCPToolResult> {
-    // Only real WooCommerce API - no demo data
+    // WooCommerce API integration
     try {
       const orders = await this.wooCommerce.getOrders({ per_page: 100, status: 'completed' });
       const coupons = await this.wooCommerce.getCoupons({ per_page: 100 });
@@ -1340,7 +1340,7 @@ export class AnalyticsTools {
   }
 
   private async getTaxReports(params: MCPToolParams): Promise<MCPToolResult> {
-    // Only real WooCommerce API - no demo data
+    // WooCommerce API integration
     try {
       const orders = await this.wooCommerce.getOrders({ per_page: 500, status: 'completed' });
       
@@ -1404,7 +1404,7 @@ export class AnalyticsTools {
   }
 
   private async getRefundStats(params: MCPToolParams): Promise<MCPToolResult> {
-    // Only real WooCommerce API - no demo data
+    // WooCommerce API integration
     try {
       const allOrders = await this.wooCommerce.getOrders({ per_page: 500 });
       const refundedOrders = await this.wooCommerce.getOrders({ per_page: 200, status: 'refunded' });
@@ -1625,212 +1625,11 @@ export class AnalyticsTools {
     };
   }
 
-  private getMockSalesReport(period: string, currency?: string): MCPToolResult {
-    // Mock data in Mexican Pesos (MXN) - more realistic for Mexican market
-    const mockData = {
-      'today': { sales: '24,891.00', orders: 8, customers: 6 },
-      'week': { sales: '175,005.00', orders: 45, customers: 32 },
-      'month': { sales: '697,815.00', orders: 187, customers: 134 },
-      'quarter': { sales: '1,971,204.00', orders: 534, customers: 387 },
-      'year': { sales: '7,758,416.00', orders: 2145, customers: 1567 }
-    };
 
-    const data = mockData[period as keyof typeof mockData] || mockData.month;
-    const avgOrderValue = (parseFloat(data.sales.replace(',', '')) / data.orders).toFixed(2);
-    
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          success: true,
-          mode: 'DEMO_DATA',
-          period: period,
-          date_range: {
-            start: this.getDateForPeriod(period, true),
-            end: this.getDateForPeriod(period, false)
-          },
-          metrics: {
-            total_sales: data.sales,
-            total_orders: data.orders,
-            average_order_value: avgOrderValue,
-            total_items_sold: data.orders * 2.3,
-            total_customers: data.customers,
-            conversion_metrics: {
-              orders_per_customer: (data.orders / data.customers).toFixed(2),
-              items_per_order: '2.3'
-            }
-          },
-          currency: currency || 'MXN',
-          message: `📊 DEMO: Sales report for ${period}: ${data.orders} orders, $${data.sales} ${currency || 'MXN'} revenue`
-        }, null, 2)
-      }]
-    };
-  }
 
-  private getMockDailySales(days: number, start_date?: string, end_date?: string, targetDate?: string): MCPToolResult {
-    const dailySales = [];
-    
-    // If specific date range is provided, use it
-    let startDate: Date, endDate: Date;
-    
-    if (start_date && end_date) {
-      startDate = new Date(start_date);
-      endDate = new Date(end_date);
-      
-      // If it's a single day query (like August 28, 2023)
-      if (start_date === end_date) {
-        const singleDay = {
-          date: start_date,
-          orders: 24,
-          revenue: 56953.00,
-          items_sold: 58,
-          avg_order_value: 2373.04
-        };
-        
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              mode: 'DEMO_DATA_HISTORICAL',
-              date_range: { start: start_date, end: end_date },
-              daily_sales: [singleDay],
-              summary: {
-                total_days: 1,
-                total_revenue: singleDay.revenue,
-                total_orders: singleDay.orders,
-                average_daily_revenue: singleDay.revenue,
-                best_day: singleDay,
-                worst_day: singleDay
-              },
-              august_28_2023: start_date === '2023-08-28' ? singleDay : null,
-              timezone_info: {
-                timezone: 'America/Mexico_City (UTC-6)',
-                note: `Historical data for ${start_date} in Mexico timezone`
-              },
-              message: `📊 DEMO: ${start_date === '2023-08-28' ? '⭐ August 28, 2023' : start_date} sales data: $${singleDay.revenue} from ${singleDay.orders} orders`
-            }, null, 2)
-          }]
-        };
-      }
-    } else {
-      // Default behavior - recent days
-      endDate = new Date();
-      startDate = new Date();
-      startDate.setDate(endDate.getDate() - days + 1);
-    }
-    
-    // Generate date range
-    const currentDate = new Date(startDate);
-    while (currentDate <= endDate) {
-      const dateStr = currentDate.toISOString().split('T')[0];
-      
-      // Generate realistic sales data with some variation in MXN
-      const baseRevenue = (800 + Math.random() * 600) * 20; // 16000-28000 MXN base
-      const weekendMultiplier = currentDate.getDay() === 0 || currentDate.getDay() === 6 ? 0.7 : 1.0; // Lower on weekends
-      const revenue = Math.round(baseRevenue * weekendMultiplier * 100) / 100;
-      const orders = Math.floor(revenue / 1700) + Math.floor(Math.random() * 3); // ~1700 MXN avg order value
-      
-      // Special case for August 28, 2023
-      if (dateStr === '2023-08-28') {
-        dailySales.push({
-          date: dateStr,
-          orders: 24,
-          revenue: 56953.00,
-          items_sold: 58,
-          avg_order_value: 2373.04
-        });
-      } else {
-        dailySales.push({
-          date: dateStr,
-          orders: orders,
-          revenue: revenue,
-          items_sold: Math.floor(orders * 2.4),
-          avg_order_value: orders > 0 ? Math.round((revenue / orders) * 100) / 100 : 0
-        });
-      }
-      
-      // Move to next day
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-    
-    const totalRevenue = dailySales.reduce((sum, day) => sum + day.revenue, 0);
-    const totalOrders = dailySales.reduce((sum, day) => sum + day.orders, 0);
-    const bestDay = dailySales.reduce((best, day) => day.revenue > best.revenue ? day : best);
-    const worstDay = dailySales.reduce((worst, day) => day.revenue < worst.revenue ? day : worst);
-    
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          success: true,
-          mode: 'DEMO_DATA',
-          date_range: {
-            start: dailySales[0]?.date,
-            end: dailySales[dailySales.length - 1]?.date
-          },
-          daily_sales: dailySales,
-          summary: {
-            total_days: dailySales.length,
-            total_revenue: Math.round(totalRevenue * 100) / 100,
-            total_orders: totalOrders,
-            average_daily_revenue: Math.round((totalRevenue / dailySales.length) * 100) / 100,
-            best_day: bestDay,
-            worst_day: worstDay
-          },
-          august_28_2023: dailySales.find(day => day.date === '2023-08-28'),
-          timezone_info: {
-            timezone: 'America/Mexico_City (UTC-6)',
-            note: 'Demo data simulated in Mexico timezone'
-          },
-          message: `📊 DEMO: Daily sales analysis for ${dailySales.length} days. ✨ August 28, 2023: $${dailySales.find(day => day.date === '2023-08-28')?.revenue || 'N/A'}`
-        }, null, 2)
-      }]
-    };
-  }
 
-  private getMockProductSales(period: string, limit: number, order_by: string): MCPToolResult {
-    const mockProducts = [
-      { product_id: 101, name: 'Premium Wireless Headphones', sku: 'PWH-001', quantity_sold: 45, revenue: 6750.00, orders: 38 },
-      { product_id: 102, name: 'Smartphone Case Pro', sku: 'SCP-002', quantity_sold: 78, revenue: 2340.00, orders: 52 },
-      { product_id: 103, name: 'Bluetooth Speaker X1', sku: 'BSX-003', quantity_sold: 32, revenue: 4800.00, orders: 28 },
-      { product_id: 104, name: 'Fitness Tracker Elite', sku: 'FTE-004', quantity_sold: 24, revenue: 3600.00, orders: 22 },
-      { product_id: 105, name: 'USB-C Hub Deluxe', sku: 'UCH-005', quantity_sold: 67, revenue: 2010.00, orders: 45 },
-      { product_id: 106, name: 'Wireless Mouse Pro', sku: 'WMP-006', quantity_sold: 89, revenue: 1780.00, orders: 67 },
-      { product_id: 107, name: 'Gaming Keyboard RGB', sku: 'GKR-007', quantity_sold: 19, revenue: 2850.00, orders: 18 },
-      { product_id: 108, name: 'Webcam 4K Ultra', sku: 'W4U-008', quantity_sold: 15, revenue: 2250.00, orders: 14 },
-      { product_id: 109, name: 'Tablet Stand Adjustable', sku: 'TSA-009', quantity_sold: 43, revenue: 1290.00, orders: 38 },
-      { product_id: 110, name: 'Power Bank 20000mAh', sku: 'PB2-010', quantity_sold: 56, revenue: 2240.00, orders: 41 }
-    ];
 
-    // Sort products by the specified metric
-    const sortedProducts = mockProducts.sort((a, b) => {
-      switch (order_by) {
-        case 'quantity':
-          return b.quantity_sold - a.quantity_sold;
-        case 'orders':
-          return b.orders - a.orders;
-        case 'revenue':
-        default:
-          return b.revenue - a.revenue;
-      }
-    }).slice(0, limit);
 
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          success: true,
-          mode: 'DEMO_DATA',
-          period: period,
-          product_sales: sortedProducts,
-          total_products: sortedProducts.length,
-          sort_by: order_by,
-          message: `📊 DEMO: Top ${sortedProducts.length} products by ${order_by} for period: ${period}`
-        }, null, 2)
-      }]
-    };
-  }
 
   private processDailySalesFromOrders(orders: any[], dateRange: any) {
     const dailyMap = new Map();
