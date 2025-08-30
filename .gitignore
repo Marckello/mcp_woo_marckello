@@ -118,3 +118,5 @@ logs/
 *.log
 pm2.log
 .pm2/
+.env.local
+*.env.local

@@ -969,7 +969,10 @@ export class AnalyticsTools {
 
     orders.forEach((order: any) => {
       const date = order.date_created ? order.date_created.split('T')[0] : new Date().toISOString().split('T')[0];
-      const revenue = parseFloat(order.total || '0');
+      // FÓRMULA CORREGIDA: Revenue neto = total - shipping (WooCommerce Dashboard)
+      const orderTotal = parseFloat(order.total || '0');
+      const shippingTotal = parseFloat(order.shipping_total || '0');
+      const revenue = orderTotal - shippingTotal;
       
       if (!dailyMap.has(date)) {
         dailyMap.set(date, { date, orders: 0, revenue: 0 });
@@ -1097,7 +1100,11 @@ export class AnalyticsTools {
         const customerId = order.customer_id;
         if (customerId) {
           const revenue = customerRevenue.get(customerId) || 0;
-          customerRevenue.set(customerId, revenue + parseFloat(order.total || '0'));
+          // FÓRMULA CORREGIDA: Revenue neto = total - shipping
+          const orderTotal = parseFloat(order.total || '0');
+          const shippingTotal = parseFloat(order.shipping_total || '0');
+          const netRevenue = orderTotal - shippingTotal;
+          customerRevenue.set(customerId, revenue + netRevenue);
         }
       }
       
@@ -1281,37 +1288,72 @@ export class AnalyticsTools {
   }
 
   private async getCouponStats(params: MCPToolParams): Promise<MCPToolResult> {
-    // WooCommerce API integration
+    // WooCommerce API integration - CORREGIDO para coincidir con WooCommerce Dashboard
+    // IMPORTANTE: WooCommerce Dashboard calcula "Ventas Netas" = Total - Shipping
+    // Esta fórmula fue verificada comparando con el dashboard real de WooCommerce
     try {
-      const orders = await this.wooCommerce.getOrders({ per_page: 100, status: 'completed' });
+      // Obtener órdenes completadas Y delivered (como WooCommerce Dashboard)
+      const completedOrders = await this.wooCommerce.getOrders({ per_page: 200, status: 'completed' });
+      const deliveredOrders = await this.wooCommerce.getOrders({ per_page: 200, status: 'delivered' });
+      
+      const validOrders = [...completedOrders, ...deliveredOrders];
       const coupons = await this.wooCommerce.getCoupons({ per_page: 100 });
       
-      // Calculate real coupon statistics from orders
+      // Calculate real coupon statistics with NET REVENUE (total - shipping)
       const couponUsage = new Map();
       let totalDiscountAmount = 0;
       
-      orders.forEach((order: any) => {
+      validOrders.forEach((order: any) => {
         if (order.coupon_lines && order.coupon_lines.length > 0) {
           order.coupon_lines.forEach((couponLine: any) => {
             const code = couponLine.code;
             const discount = parseFloat(couponLine.discount) || 0;
             
+            // FÓRMULA CORREGIDA: Revenue neto = total - shipping (como WooCommerce Dashboard)
+            const orderTotal = parseFloat(order.total) || 0;
+            const shippingTotal = parseFloat(order.shipping_total) || 0;
+            const netRevenue = orderTotal - shippingTotal;
+            
             if (!couponUsage.has(code)) {
-              couponUsage.set(code, { uses: 0, discount: 0 });
+              couponUsage.set(code, { 
+                uses: 0, 
+                discount: 0, 
+                net_revenue: 0,
+                avg_order_value: 0,
+                orders: []
+              });
             }
             
             const usage = couponUsage.get(code);
             usage.uses += 1;
             usage.discount += discount;
+            usage.net_revenue += netRevenue;
+            usage.avg_order_value = usage.net_revenue / usage.uses;
+            usage.orders.push({
+              id: order.id,
+              date: order.date_created,
+              total: orderTotal,
+              shipping: shippingTotal,
+              net: netRevenue,
+              discount: discount
+            });
+            
             totalDiscountAmount += discount;
           });
         }
       });
       
-      const mostUsedCoupons = Array.from(couponUsage.entries())
-        .map(([code, stats]: [string, any]) => ({ code, uses: stats.uses, discount: stats.discount }))
-        .sort((a, b) => b.uses - a.uses)
-        .slice(0, 5);
+      // Ordenar cupones por uso (más usados primero)
+      const sortedCoupons = Array.from(couponUsage.entries())
+        .map(([code, stats]: [string, any]) => ({
+          code,
+          uses: stats.uses,
+          total_discount: stats.discount,
+          net_revenue: stats.net_revenue,
+          avg_order_value: stats.avg_order_value,
+          orders: stats.orders
+        }))
+        .sort((a, b) => b.uses - a.uses);
       
       return {
         content: [{
@@ -1319,16 +1361,19 @@ export class AnalyticsTools {
           text: JSON.stringify({
             success: true,
             source: 'woocommerce_api',
+            calculation_method: 'net_revenue_total_minus_shipping',
             coupon_stats: {
-              total_coupons_used: couponUsage.size,
+              total_coupons_analyzed: couponUsage.size,
               total_discount_amount: totalDiscountAmount,
-              most_used_coupons: mostUsedCoupons,
+              total_orders_analyzed: validOrders.length,
+              most_used_coupons: sortedCoupons.slice(0, 10),
               coupon_effectiveness: {
-                conversion_rate: orders.length > 0 ? `${((couponUsage.size / orders.length) * 100).toFixed(1)}%` : '0%',
-                average_discount: couponUsage.size > 0 ? (totalDiscountAmount / couponUsage.size).toFixed(2) : 0
+                orders_with_coupons: validOrders.filter(o => o.coupon_lines && o.coupon_lines.length > 0).length,
+                conversion_rate: validOrders.length > 0 ? `${((validOrders.filter(o => o.coupon_lines && o.coupon_lines.length > 0).length / validOrders.length) * 100).toFixed(1)}%` : '0%',
+                average_discount_per_coupon: couponUsage.size > 0 ? (totalDiscountAmount / couponUsage.size).toFixed(2) : 0
               }
             },
-            message: 'Coupon usage statistics from WooCommerce store'
+            message: 'Coupon statistics calculated using WooCommerce Dashboard methodology (net revenue = total - shipping)'
           }, null, 2)
         }]
       };
@@ -1640,7 +1685,10 @@ export class AnalyticsTools {
       if (!orderDate) return;
       
       const date = orderDate.split('T')[0]; // Get YYYY-MM-DD format
-      const revenue = parseFloat(order.total || '0');
+      // FÓRMULA CORREGIDA: Revenue neto = total - shipping (WooCommerce Dashboard)
+      const orderTotal = parseFloat(order.total || '0');
+      const shippingTotal = parseFloat(order.shipping_total || '0');
+      const revenue = orderTotal - shippingTotal;
       
       if (!dailyMap.has(date)) {
         dailyMap.set(date, { 
