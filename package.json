@@ -1,6 +1,6 @@
 {
   "name": "mcp-woocommerce-server",
-  "version": "1.3.4",
+  "version": "1.4.0",
   "description": "MCP Server for WooCommerce integration with n8n support",
   "main": "dist/index.js",
   "bin": {
