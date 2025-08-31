@@ -144,7 +144,8 @@ class WooCommerceMCPServer {
         ...this.productTools.getTools(),
         ...this.orderTools.getTools(),
         ...this.customerTools.getTools(),
-        ...this.analyticsTools.getTools()
+        ...this.analyticsTools.getTools(),
+        ...this.couponTools.getTools()
       ];
 
       this.logger.debug(`Listed ${allTools.length} available tools`);
@@ -163,19 +164,25 @@ class WooCommerceMCPServer {
       try {
         let result;
 
-        // Route to appropriate tool handler
-        if (name.startsWith('wc_') && (name.includes('product') || name === 'wc_batch_products')) {
+        // Route to appropriate tool handler - COUPON TOOLS FIRST (highest priority for specific coupon tools)  
+        if (name === 'wc_get_coupons' || name === 'wc_get_coupon' || 
+            name === 'wc_get_coupon_by_code' || name === 'wc_get_coupon_usage_stats' ||
+            name === 'wc_get_top_coupons_usage' || name === 'wc_create_coupon' ||
+            name === 'wc_update_coupon' || name === 'wc_delete_coupon') {
+          result = await this.couponTools.handleTool(name, args || {});
+        } else if (name.startsWith('wc_get_sales') || name.startsWith('wc_get_daily') || 
+            name.startsWith('wc_get_monthly') || name.startsWith('wc_get_yearly') || 
+            name.startsWith('wc_get_top') || name.startsWith('wc_get_revenue') || 
+            name.startsWith('wc_get_tax') || name.startsWith('wc_get_refund') || 
+            name.startsWith('wc_get_product_sales') || name.includes('_analytics') ||
+            name.includes('_stats')) {
+          result = await this.analyticsTools.handleTool(name, args || {});
+        } else if (name.startsWith('wc_') && (name.includes('product') || name === 'wc_batch_products')) {
           result = await this.productTools.handleTool(name, args || {});
         } else if (name.startsWith('wc_') && name.includes('order')) {
           result = await this.orderTools.handleTool(name, args || {});
         } else if (name.startsWith('wc_') && name.includes('customer')) {
           result = await this.customerTools.handleTool(name, args || {});
-        } else if (name.startsWith('wc_get_sales') || name.startsWith('wc_get_daily') || 
-                   name.startsWith('wc_get_monthly') || name.startsWith('wc_get_yearly') || 
-                   name.startsWith('wc_get_top') || name.startsWith('wc_get_revenue') || 
-                   name.startsWith('wc_get_coupon') || name.startsWith('wc_get_tax') || 
-                   name.startsWith('wc_get_refund') || name.startsWith('wc_get_product_sales')) {
-          result = await this.analyticsTools.handleTool(name, args || {});
         } else {
           throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
         }

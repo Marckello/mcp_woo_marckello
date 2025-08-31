@@ -601,10 +601,10 @@ export class CustomerTools {
 
     // Only real WooCommerce API - no fallback
     try {
-      // Get real customers from WooCommerce
-      const realCustomers = await this.wooCommerce.getCustomers({ per_page: 100 });
-      // Get real orders to calculate customer metrics
-      const realOrders = await this.wooCommerce.getOrders({ per_page: 500, status: 'completed' });
+      // Get real customers from WooCommerce (max 50 per page)
+      const realCustomers = await this.wooCommerce.getCustomers({ per_page: 50 });
+      // Get real orders to calculate customer metrics (max 50 per page)
+      const realOrders = await this.wooCommerce.getOrders({ per_page: 50, status: 'completed' });
       
       // Calculate real customer metrics
       const realTopCustomers = this.calculateRealCustomerMetrics(realCustomers, realOrders, metric, limit, min_orders);
@@ -659,7 +659,7 @@ export class CustomerTools {
       if (customer_id) {
         targetCustomer = await this.wooCommerce.getCustomer(customer_id);
       } else if (email) {
-        const customers = await this.wooCommerce.getCustomers({ search: email, per_page: 100 });
+        const customers = await this.wooCommerce.getCustomers({ search: email, per_page: 50 });
         targetCustomer = customers.find((c: any) => c.email.toLowerCase() === email.toLowerCase());
       }
       
@@ -679,7 +679,7 @@ export class CustomerTools {
       // Get customer orders
       const customerOrders = await this.wooCommerce.getOrders({ 
         customer: targetCustomer.id,
-        per_page: 100,
+        per_page: 50,
         status: status.join(',')
       });
       
@@ -749,7 +749,7 @@ export class CustomerTools {
     // Only real WooCommerce API - no fallback
     try {
       // Get real coupons and sales from WooCommerce
-      const realCoupons = await this.wooCommerce.getCoupons({ per_page: 100 });
+      const realCoupons = await this.wooCommerce.getCoupons({ per_page: 50 });
       const realPromotions = realCoupons
         .filter((coupon: any) => coupon.status === 'publish')
         .map((coupon: any) => ({
@@ -793,10 +793,11 @@ export class CustomerTools {
   private calculateRealCustomerMetrics(customers: any[], orders: any[], metric: string, limit: number, minOrders: number): any[] {
     // Calculate real customer metrics from WooCommerce data
     const customerMetrics = new Map();
+    const emailToCustomer = new Map();
 
-    // Process each customer
+    // Process each registered customer
     customers.forEach(customer => {
-      customerMetrics.set(customer.id, {
+      const customerData = {
         id: customer.id,
         email: customer.email,
         first_name: customer.first_name,
@@ -805,21 +806,70 @@ export class CustomerTools {
         orders_count: 0,
         average_order_value: 0,
         last_order_date: null,
-        registration_date: customer.date_created
-      });
+        registration_date: customer.date_created,
+        is_registered: true
+      };
+      customerMetrics.set(customer.id, customerData);
+      emailToCustomer.set(customer.email.toLowerCase(), customerData);
     });
 
-    // Process orders to calculate metrics
-    orders.forEach(order => {
+    // Process orders to calculate metrics (registered + guest customers)
+    let ordersProcessed = 0;
+    let ordersMatched = 0;
+    let guestOrdersCreated = 0;
+    
+    orders.forEach((order: any) => {
+      ordersProcessed++;
       const customerId = order.customer_id;
-      if (customerId && customerMetrics.has(customerId)) {
-        const metrics = customerMetrics.get(customerId);
-        metrics.total_spent += parseFloat(order.total || 0);
-        metrics.orders_count += 1;
-        if (!metrics.last_order_date || order.date_created > metrics.last_order_date) {
-          metrics.last_order_date = order.date_created;
+      const billingEmail = order.billing?.email?.toLowerCase();
+      
+      let targetMetrics = null;
+      
+      // 1. Try registered customer first
+      if (customerId && customerId !== 0 && customerMetrics.has(customerId)) {
+        targetMetrics = customerMetrics.get(customerId);
+        ordersMatched++;
+      }
+      // 2. Try guest customer by email
+      else if (billingEmail && emailToCustomer.has(billingEmail)) {
+        targetMetrics = emailToCustomer.get(billingEmail);
+        ordersMatched++;
+      }
+      // 3. Create new guest customer
+      else if (billingEmail) {
+        const guestCustomerId = `guest_${billingEmail}`;
+        targetMetrics = {
+          id: guestCustomerId,
+          email: billingEmail,
+          first_name: order.billing?.first_name || 'Guest',
+          last_name: order.billing?.last_name || 'Customer',
+          total_spent: 0,
+          orders_count: 0,
+          average_order_value: 0,
+          last_order_date: null,
+          registration_date: order.date_created,
+          is_registered: false
+        };
+        customerMetrics.set(guestCustomerId, targetMetrics);
+        emailToCustomer.set(billingEmail, targetMetrics);
+        guestOrdersCreated++;
+      }
+      
+      // Update metrics if we found/created a customer
+      if (targetMetrics) {
+        targetMetrics.total_spent += parseFloat(order.total || 0);
+        targetMetrics.orders_count += 1;
+        if (!targetMetrics.last_order_date || order.date_created > targetMetrics.last_order_date) {
+          targetMetrics.last_order_date = order.date_created;
         }
       }
+    });
+
+    // Log processing summary for monitoring
+    this.logger.info('Customer metrics calculated', { 
+      ordersProcessed, 
+      ordersMatched, 
+      guestCustomersCreated: guestOrdersCreated 
     });
 
     // Calculate average order value and filter by min orders

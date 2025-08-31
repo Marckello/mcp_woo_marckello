@@ -122,3 +122,4 @@ pm2.log
 *.env.local
 .env.test
 *.env.test
+.env.test

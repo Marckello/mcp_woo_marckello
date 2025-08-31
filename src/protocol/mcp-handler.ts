@@ -171,8 +171,20 @@ export class MCPProtocolHandler {
     try {
       let result;
 
-      // Route to appropriate tool handler based on tool name
-      if (name?.startsWith('wc_get_products') || name?.startsWith('wc_create_product') || 
+      // Route to appropriate tool handler - COUPON TOOLS FIRST (highest priority for specific coupon tools)
+      if (name === 'wc_get_coupons' || name === 'wc_get_coupon' || 
+          name === 'wc_get_coupon_by_code' || name === 'wc_get_coupon_usage_stats' ||
+          name === 'wc_get_top_coupons_usage' || name === 'wc_create_coupon' ||
+          name === 'wc_update_coupon' || name === 'wc_delete_coupon') {
+        result = await this.couponTools.callTool(name, args);
+      } else if (name?.startsWith('wc_get_sales') || name?.startsWith('wc_get_daily') || 
+          name?.startsWith('wc_get_monthly') || name?.startsWith('wc_get_yearly') || 
+          name?.startsWith('wc_get_top_sellers') || name?.startsWith('wc_get_revenue') || 
+          name?.startsWith('wc_get_tax') || name?.startsWith('wc_get_refund') || 
+          name?.startsWith('wc_get_product_sales') || name?.includes('_analytics') ||
+          name?.includes('_stats')) {
+        result = await this.analyticsTools.callTool(name, args);
+      } else if (name?.startsWith('wc_get_products') || name?.startsWith('wc_create_product') || 
           name?.startsWith('wc_update_product') || name?.startsWith('wc_delete_product') || 
           name?.startsWith('wc_batch_products')) {
         result = await this.productTools.callTool(name, args);
@@ -185,16 +197,6 @@ export class MCPProtocolHandler {
                  name?.startsWith('wc_batch_customer') || name?.startsWith('wc_get_top_customers') ||
                  name?.startsWith('wc_get_promotions')) {
         result = await this.customerTools.callTool(name, args);
-      } else if (name?.startsWith('wc_get_coupon') || name?.startsWith('wc_create_coupon') || 
-                 name?.startsWith('wc_update_coupon') || name?.startsWith('wc_delete_coupon') ||
-                 name?.startsWith('wc_get_top_coupons')) {
-        result = await this.couponTools.callTool(name, args);
-      } else if (name?.startsWith('wc_get_sales') || name?.startsWith('wc_get_daily') || 
-                 name?.startsWith('wc_get_monthly') || name?.startsWith('wc_get_yearly') || 
-                 name?.startsWith('wc_get_top_sellers') || name?.startsWith('wc_get_revenue') || 
-                 name?.startsWith('wc_get_tax') || name?.startsWith('wc_get_refund') || 
-                 name?.startsWith('wc_get_product_sales')) {
-        result = await this.analyticsTools.callTool(name, args);
       } else {
         throw new Error(`Unknown tool: ${name}`);
       }
