@@ -140,8 +140,8 @@ POST /n8n/execute
 - **Average LTV**: $2,758.45
 
 ### **Top Customer**
-- **Name**: María Flor Domínguez Ramos
-- **Email**: mfdr_62@hotmail.com
+- **Name**: María Flor
+- **Email**: correo@correo.com
 - **Total Spent**: $21,416.80
 - **Orders**: 2
 
