@@ -413,51 +413,7 @@ class WooCommerceMCPServer {
     this.expressApp.use(express.json({ limit: '10mb' }));
     this.expressApp.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-    // Health check endpoint
-    this.expressApp.get('/health', async (req, res) => {
-      try {
-        const health = await this.wooCommerce.healthCheck();
-        res.json({
-          status: 'healthy',
-          timestamp: new Date().toISOString(),
-          woocommerce: health,
-          server: {
-            name: this.config.name,
-            version: this.config.version,
-            uptime: process.uptime()
-          }
-        });
-      } catch (error) {
-        res.status(503).json({
-          status: 'unhealthy',
-          error: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        });
-      }
-    });
-
-    // Info endpoint
-    this.expressApp.get('/info', async (req, res) => {
-      try {
-        const info = await this.getStoreInfo();
-        res.json(info);
-      } catch (error) {
-        res.status(500).json({
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-    });
-
-    // MCP Server-Sent Events endpoint for streaming
-    this.expressApp.get('/mcp-sse', (req, res) => {
-      if (!this.mcpTransport) {
-        return res.status(500).json({ error: 'MCP Transport not initialized' });
-      }
-      
-      const sessionId = this.mcpTransport.handleSSEConnection(req, res);
-      this.logger.info('SSE connection established', { sessionId });
-      return sessionId;
-    });
+    // ÚNICAMENTE ENDPOINT /MCP - Todos los demás endpoints eliminados como solicitó Marco
     
     // MCP JSON-RPC HTTP endpoint (fallback for simple requests)
     this.expressApp.post('/mcp', async (req, res) => {
@@ -505,91 +461,14 @@ class WooCommerceMCPServer {
       }
     });
 
-    // N8n webhook endpoint
-    this.expressApp.post('/webhook/n8n', (req, res) => {
-      this.logger.info('N8n webhook received', { 
-        headers: req.headers,
-        body: req.body 
-      });
-      
-      res.json({
-        success: true,
-        message: 'Webhook received',
-        timestamp: new Date().toISOString(),
-        data: req.body
-      });
-    });
 
-    // N8n MCP Tools endpoint with compatibility layer
-    this.expressApp.get('/n8n/tools', (req, res) => {
-      try {
-        const allTools = [
-          ...this.productTools.getTools(),
-          ...this.orderTools.getTools(),
-          ...this.customerTools.getTools(),
-          ...this.analyticsTools.getTools(),
-          ...this.couponTools.getTools()
-        ];
-
-        const n8nCompatibleTools = this.n8nCompatibility!.getN8nCompatibleTools(allTools);
-        
-        res.json({
-          success: true,
-          tools: n8nCompatibleTools,
-          count: n8nCompatibleTools.length,
-          timestamp: new Date().toISOString()
-        });
-      } catch (error) {
-        this.logger.error('N8n tools endpoint error', { error });
-        res.status(500).json({
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-    });
-
-    // N8n Tool Execution endpoint with compatibility layer
-    this.expressApp.post('/n8n/execute', async (req, res): Promise<void> => {
-      try {
-        const { toolName, input } = req.body;
-        
-        if (!toolName) {
-          res.status(400).json({
-            success: false,
-            error: 'Tool name is required'
-          });
-          return;
-        }
-
-        // Execute tool with N8N compatibility layer
-        const result = await this.n8nCompatibility!.processToolExecution(
-          toolName,
-          input || {},
-          async (name: string, args: any) => {
-            return await this.executeToolInternal(name, args);
-          }
-        );
-
-        res.json(result);
-      } catch (error) {
-        this.logger.error('N8n execute endpoint error', { error, body: req.body });
-        res.status(500).json(
-          this.n8nCompatibility!.createErrorResponse(error instanceof Error ? error : 'Unknown execution error')
-        );
-      }
-    });
 
     // 404 handler
     this.expressApp.use((req, res) => {
       res.status(404).json({
         error: 'Endpoint not found',
         available_endpoints: {
-          'GET /health': 'Server health check',
-          'GET /info': 'Store information',
-          'GET /mcp-sse': 'MCP Server-Sent Events streaming',
-          'POST /mcp': 'MCP HTTP JSON-RPC endpoint',
-          'WebSocket /mcp-ws': 'Native MCP WebSocket protocol',
-          'POST /webhook/n8n': 'N8n webhook endpoint'
+          'POST /mcp': 'MCP HTTP JSON-RPC endpoint - ÚNICO ENDPOINT DISPONIBLE'
         }
       });
     });
