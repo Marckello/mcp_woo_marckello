@@ -1,21 +1,58 @@
-# MCP WooCommerce Server v2.3.0
+# MCP WooCommerce Server v2.4.0 - N8N Compatible
 
 ## 🚀 Complete MCP (Model Context Protocol) Server for WooCommerce Integration
 
-**Production-Ready** | **Real Data Integration** | **EasyPanel Deployment** | **N8n Automation Support**
+**Production-Ready** | **Real Data Integration** | **EasyPanel Deployment** | **N8N Automation Support** | **Schema Compatible**
 
 ## ✨ Project Overview
 
 - **Name**: MCP WooCommerce Server
-- **Version**: v2.3.0
+- **Version**: v2.4.0
 - **Goal**: Complete WooCommerce e-commerce automation through MCP protocol
-- **Features**: 37+ comprehensive WooCommerce API tools with bidirectional MCP communication
+- **Features**: 44+ comprehensive WooCommerce API tools with bidirectional MCP communication
+- **N8N Compatible**: Specialized endpoints for N8N workflow automation
 
 ## 🌍 Live URLs
 
 - **Production**: Ready for EasyPanel deployment
 - **GitHub**: https://github.com/Marckello/mcp_woo_marckello
 - **MCP Protocol**: Native MCP with WebSocket & SSE support
+- **N8N Endpoints**: `/n8n/tools` and `/n8n/execute` for workflow automation
+
+## 🆕 N8N Integration (NEW v2.4.0)
+
+### **🚨 SOLVED: N8N Schema Compatibility Errors**
+If you're getting **"Received tool input did not match expected schema"** errors in N8N, use these **specialized N8N endpoints**:
+
+#### **N8N-Compatible Endpoints:**
+- **GET `/n8n/tools`** - Get available tools in N8N-compatible format
+- **POST `/n8n/execute`** - Execute tools with N8N schema validation
+
+#### **Example N8N Request:**
+```json
+POST /n8n/execute
+{
+  "toolName": "wc_get_coupon_stats",
+  "input": {
+    "coupon_code": "holasalud"
+  }
+}
+```
+
+#### **N8N Response Format:**
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\": true, \"data\": {...}}"
+    }
+  ],
+  "isError": false
+}
+```
+
+**📋 Full N8N Integration Guide**: See `N8N_INTEGRATION.md`
 
 ## 🏗️ Technical Architecture
 
@@ -24,8 +61,9 @@
 - **Protocol**: MCP (Model Context Protocol) with JSON-RPC 2.0
 - **Transport**: HTTP + WebSocket + Server-Sent Events (SSE)
 - **API Integration**: WooCommerce REST API v3
+- **N8N Compatibility**: Schema validation layer for workflow automation
 - **Deployment**: Docker multi-stage builds for EasyPanel
-- **Automation**: N8n workflow integration ready
+- **Automation**: N8n workflow integration with dedicated endpoints
 
 ### **Data Architecture**
 - **WooCommerce API**: Real-time data integration (no demo data)
@@ -37,11 +75,12 @@
 ### **Security & Validation**
 - **Authentication**: WooCommerce OAuth credentials
 - **Validation**: Joi schemas for all API inputs
+- **N8N Compatibility**: Input sanitization and schema validation
 - **Security**: Helmet + CORS middleware
 - **Logging**: Winston structured logging
 - **Error Handling**: Comprehensive error management
 
-## 🛠️ MCP Tools Available (37+ Tools)
+## 🛠️ MCP Tools Available (44+ Tools)
 
 ### **✅ Analytics & Reports (VERIFIED)**
 - `wc_get_revenue_stats` - Revenue statistics ($122,351.67 gross revenue ✅)
@@ -147,6 +186,9 @@ npm start
 curl http://localhost:3001/health
 curl http://localhost:3001/mcp -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+
+# 5. Test N8N endpoints
+curl http://localhost:3001/n8n/tools
 ```
 
 ## 🔌 MCP Protocol Integration
@@ -155,6 +197,7 @@ curl http://localhost:3001/mcp -X POST -H "Content-Type: application/json" \
 - **HTTP**: `POST http://localhost:3001/mcp`
 - **WebSocket**: `ws://localhost:3001/mcp-ws`
 - **Server-Sent Events**: `http://localhost:3001/mcp-sse`
+- **N8N Compatible**: `POST http://localhost:3001/n8n/execute`
 
 ### **Example MCP Request**
 ```json
@@ -172,14 +215,30 @@ curl http://localhost:3001/mcp -X POST -H "Content-Type: application/json" \
 }
 ```
 
+### **Example N8N Request**
+```json
+{
+  "toolName": "wc_get_revenue_stats",
+  "input": {
+    "period": "month",
+    "timezone": "America/Mexico_City"
+  }
+}
+```
+
 ## 🔄 N8n Automation Integration
 
-### **Webhook Endpoint**
+### **Standard Webhook Endpoint**
 - **URL**: `http://localhost:3001/webhook/n8n`
 - **Method**: POST
 - **Content-Type**: application/json
 
+### **N8N-Compatible Tool Endpoints**
+- **Tools List**: `GET http://localhost:3001/n8n/tools`
+- **Execute Tool**: `POST http://localhost:3001/n8n/execute`
+
 ### **Integration Features**
+- Schema-validated tool execution
 - Real-time order notifications
 - Customer lifecycle automation
 - Inventory management triggers
@@ -190,6 +249,7 @@ curl http://localhost:3001/mcp -X POST -H "Content-Type: application/json" \
 ### **Production Configuration**
 - ✅ Environment variables for credentials
 - ✅ Input validation with Joi schemas
+- ✅ N8N schema compatibility layer
 - ✅ Rate limiting and security headers
 - ✅ Structured logging for monitoring
 - ✅ Error handling and recovery
@@ -198,11 +258,18 @@ curl http://localhost:3001/mcp -X POST -H "Content-Type: application/json" \
 ### **API Rate Limits**
 - WooCommerce API: 50 requests per page (optimized)
 - MCP Protocol: No artificial limits
+- N8N Endpoints: Validated input processing
 - Error recovery: Automatic retry logic
 
-## 📋 Recent Updates (v2.3.0)
+## 📋 Recent Updates (v2.4.0)
 
-### **🔥 Critical Fixes Applied**
+### **🔥 Major N8N Compatibility Update**
+- ✅ **N8N Schema Compatibility** - Complete solution for "tool input did not match expected schema" errors
+- ✅ **Dedicated N8N Endpoints** - `/n8n/tools` and `/n8n/execute` for seamless integration
+- ✅ **Input Validation Layer** - Sanitization and validation for N8N workflow compatibility
+- ✅ **Enhanced Error Handling** - N8N-specific error responses and recovery
+
+### **🔧 Critical Fixes Applied (v2.3.0)**
 - ✅ **Complete demo data elimination** - Only real WooCommerce data returned
 - ✅ **Revenue calculation fix** - Now matches WooCommerce Dashboard exactly
 - ✅ **Guest customer support** - Includes non-registered customers in analytics
@@ -210,6 +277,7 @@ curl http://localhost:3001/mcp -X POST -H "Content-Type: application/json" \
 - ✅ **API limit optimization** - Fixed per_page limits for better performance
 
 ### **🚀 New Features**
+- ✅ **N8N Workflow Integration** - Native support for N8N automation
 - ✅ **Hybrid customer analytics** - Registered + guest customer insights
 - ✅ **Enhanced coupon analytics** - Usage patterns and revenue impact
 - ✅ **Real-time data validation** - All responses verified against live data
@@ -223,16 +291,18 @@ curl http://localhost:3001/mcp -X POST -H "Content-Type: application/json" \
 - ✅ Top Customers: Real customer rankings
 - ✅ Coupon Performance: Live usage statistics
 - ✅ Order Management: 50 orders, 35 completed
+- ✅ N8N Integration: Schema compatibility verified
 - ✅ Zero demo data: 100% real WooCommerce integration
 
 ## 🤝 Support & Maintenance
 
 - **Status**: ✅ Production Ready
 - **Platform**: EasyPanel optimized
+- **N8N Compatible**: Schema validation layer included
 - **Tech Stack**: TypeScript + Node.js + Express + Docker
 - **Last Updated**: 2025-08-31
-- **Verified**: Real WooCommerce data integration
+- **Verified**: Real WooCommerce data integration + N8N compatibility
 
 ---
 
-**Ready for production deployment with complete WooCommerce e-commerce automation capabilities.**
+**Ready for production deployment with complete WooCommerce e-commerce automation capabilities and N8N workflow integration.**

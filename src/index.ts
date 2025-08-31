@@ -29,6 +29,7 @@ import { AnalyticsTools } from './tools/analytics.js';
 import { CouponTools } from './tools/coupons.js';
 import { MCPTransport } from './transport/mcp-transport.js';
 import { MCPProtocolHandler } from './protocol/mcp-handler.js';
+import { N8nCompatibility } from './n8n/compatibility.js';
 
 // Load environment variables
 dotenv.config();
@@ -47,6 +48,7 @@ class WooCommerceMCPServer {
   private httpServer?: any;
   private mcpTransport?: MCPTransport;
   private mcpProtocol?: MCPProtocolHandler;
+  private n8nCompatibility?: N8nCompatibility;
 
   constructor() {
     this.logger = Logger.getInstance();
@@ -114,6 +116,7 @@ class WooCommerceMCPServer {
       this.customerTools = new CustomerTools(this.wooCommerce, this.logger);
       this.analyticsTools = new AnalyticsTools(this.wooCommerce, this.logger);
       this.couponTools = new CouponTools(this.wooCommerce, this.logger);
+      this.n8nCompatibility = new N8nCompatibility(this.logger);
       
       // Initialize MCP Protocol components
       this.mcpProtocol = new MCPProtocolHandler(
@@ -135,6 +138,39 @@ class WooCommerceMCPServer {
       this.logger.error('Failed to initialize services', { error });
       throw error;
     }
+  }
+
+  private async executeToolInternal(name: string, args: any): Promise<any> {
+    // Internal tool execution method for N8N compatibility - COUPON TOOLS FIRST
+    if (name === 'wc_get_coupons' || name === 'wc_get_coupon' || 
+        name === 'wc_get_coupon_by_code' || name === 'wc_get_coupon_usage_stats' ||
+        name === 'wc_get_top_coupons_usage' || name === 'wc_create_coupon' ||
+        name === 'wc_update_coupon' || name === 'wc_delete_coupon') {
+      return await this.couponTools.handleTool(name, args);
+    } 
+    // CUSTOMER TOOLS (including wc_get_top_customers)
+    else if (name.startsWith('wc_') && name.includes('customer')) {
+      return await this.customerTools.handleTool(name, args);
+    }
+    // ANALYTICS TOOLS (excluding customer-specific tools)
+    else if (name.startsWith('wc_get_sales') || name.startsWith('wc_get_daily') || 
+        name.startsWith('wc_get_monthly') || name.startsWith('wc_get_yearly') || 
+        name.startsWith('wc_get_top_sellers') || name.startsWith('wc_get_revenue') || 
+        name.startsWith('wc_get_tax') || name.startsWith('wc_get_refund') || 
+        name.startsWith('wc_get_product_sales') || name.includes('_analytics') ||
+        (name.includes('_stats') && !name.includes('coupon'))) {
+      return await this.analyticsTools.handleTool(name, args);
+    } 
+    // PRODUCT TOOLS
+    else if (name.startsWith('wc_') && (name.includes('product') || name === 'wc_batch_products')) {
+      return await this.productTools.handleTool(name, args);
+    } 
+    // ORDER TOOLS
+    else if (name.startsWith('wc_') && name.includes('order')) {
+      return await this.orderTools.handleTool(name, args);
+    }
+    
+    throw new Error(`Unknown tool: ${name}`);
   }
 
   private setupHandlers(): void {
@@ -482,6 +518,65 @@ class WooCommerceMCPServer {
         timestamp: new Date().toISOString(),
         data: req.body
       });
+    });
+
+    // N8n MCP Tools endpoint with compatibility layer
+    this.expressApp.get('/n8n/tools', (req, res) => {
+      try {
+        const allTools = [
+          ...this.productTools.getTools(),
+          ...this.orderTools.getTools(),
+          ...this.customerTools.getTools(),
+          ...this.analyticsTools.getTools(),
+          ...this.couponTools.getTools()
+        ];
+
+        const n8nCompatibleTools = this.n8nCompatibility!.getN8nCompatibleTools(allTools);
+        
+        res.json({
+          success: true,
+          tools: n8nCompatibleTools,
+          count: n8nCompatibleTools.length,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        this.logger.error('N8n tools endpoint error', { error });
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    });
+
+    // N8n Tool Execution endpoint with compatibility layer
+    this.expressApp.post('/n8n/execute', async (req, res): Promise<void> => {
+      try {
+        const { toolName, input } = req.body;
+        
+        if (!toolName) {
+          res.status(400).json({
+            success: false,
+            error: 'Tool name is required'
+          });
+          return;
+        }
+
+        // Execute tool with N8N compatibility layer
+        const result = await this.n8nCompatibility!.processToolExecution(
+          toolName,
+          input || {},
+          async (name: string, args: any) => {
+            return await this.executeToolInternal(name, args);
+          }
+        );
+
+        res.json(result);
+      } catch (error) {
+        this.logger.error('N8n execute endpoint error', { error, body: req.body });
+        res.status(500).json(
+          this.n8nCompatibility!.createErrorResponse(error instanceof Error ? error : 'Unknown execution error')
+        );
+      }
     });
 
     // 404 handler
